@@ -16,7 +16,7 @@ from requests.auth import HTTPBasicAuth
 from typing import NamedTuple
 from datetime import datetime, timedelta
 
-from pypaypal.errors import AuthenticationError, ExpiredSessionError
+from pypaypal.errors import IdentityError, ExpiredSessionError
 
 """
     Live PayPal api base URL.
@@ -35,14 +35,14 @@ SANDBOX_API_BASE_URL = 'https://api.sandbox.paypal.com/v2/'
 """
     Live PayPal api base URL for v1 api requests.
 """
-_LEGACY_LIVE_API_BASE_URL = 'https://api.paypal.com/v1/'
+LEGACY_LIVE_API_BASE_URL = 'https://api.paypal.com/v1/'
 
 """
     Sandbox PayPal api base URL for v1 api requests.
 """
-_LEGACY_SANDBOX_API_BASE_URL = 'https://api.sandbox.paypal.com/v1/'
+LEGACY_SANDBOX_API_BASE_URL = 'https://api.sandbox.paypal.com/v1/'
 
-class SessionType(Enum):
+class AuthType(Enum):
     """
         Enumerated constants for the session type
     """
@@ -56,6 +56,14 @@ class SessionMode(Enum):
     """
     LIVE = 1
     SANDBOX = 2
+
+    def is_live(self) -> bool:
+        """Boolean flag dictating if this instance is a live session mode or not
+        
+        Returns:
+            bool -- true if live false if sandbox
+        """
+        return self == SessionMode.LIVE
 
 class SessionStatus(Enum):
     ACTIVE = 1
@@ -80,12 +88,12 @@ class PayPalToken(NamedTuple):
         """
         return self.requested_at + timedelta(seconds = self.expires_in) < datetime.now()
     
-    @staticmethod
-    def serialize(json_data: dict):
+    @classmethod
+    def serialize(cls, json_data: dict):
         """
             Serializes a paypal json OAuthResponse into an instance
         """
-        return PayPalToken(
+        return cls(
             json_data['scope'], json_data['access_token'], json_data['token_type'], 
             json_data['app_id'], json_data['expires_in'], json_data['nonce'], datetime.now()
         )
@@ -110,12 +118,12 @@ def _authenticate(client_id: str, secret:str, mode: SessionMode) -> PayPalToken:
         mode {SessionMode} -- Desired session mode (LIVE or SANDBOX)
     
     Raises:
-        AuthenticationError: If the user fails to authenticate
+        IdentityError: If the user fails to authenticate
     
     Returns:
         PayPalToken -- An immutable object with the token information
     """
-    base = _LEGACY_LIVE_API_BASE_URL if mode == SessionMode.LIVE else _LEGACY_SANDBOX_API_BASE_URL
+    base = LEGACY_LIVE_API_BASE_URL if mode == SessionMode.LIVE else LEGACY_SANDBOX_API_BASE_URL
     url = parse_url(base, '/oauth2/token')
     body = { 'grant_type' : 'client_credentials' }
 
@@ -127,7 +135,7 @@ def _authenticate(client_id: str, secret:str, mode: SessionMode) -> PayPalToken:
     response = post(url, body, None, auth=HTTPBasicAuth(client_id, secret), headers=headers)
 
     if response.status_code != 200:
-        raise AuthenticationError(response)
+        raise IdentityError(response)
 
     return PayPalToken.serialize(response.json())
 
@@ -135,16 +143,16 @@ class PayPalSession(ABC):
     """
         PayPal session abstraction
     """
-    def __init__(self, session_type: SessionType, session_mode: SessionMode, token: PayPalToken):
+    def __init__(self, auth_type: AuthType, session_mode: SessionMode, token: PayPalToken):
         """Constructor
         
         Arguments:
-            session_type {SessionType} -- The instance session type
+            auth_type {AuthType} -- The instance session type
             session_mode {SessionMode} -- The instance session mode
             token {PayPalToken} -- The instance initial access token
         """
         self._paypal_token = token
-        self.session_type = session_type
+        self.auth_type = auth_type
         self.session_mode = session_mode
         self.status = SessionStatus.ACTIVE
     
@@ -245,7 +253,7 @@ class _OAuthSession(PayPalSession):
         requests.
     """
     def __init__(self, session_mode: SessionMode, token: PayPalToken):
-        super().__init__(SessionType.TOKEN, session_mode, token)
+        super().__init__(AuthType.TOKEN, session_mode, token)
     
     def _check_token(self) -> PayPalToken:
         if self.status == SessionStatus.ACTIVE and (self._paypal_token == None or self._paypal_token.is_expired()):
@@ -281,10 +289,10 @@ class _OAuthSession(PayPalSession):
         self.status = SessionStatus.DISPOSED
 
     def __repr__(self):
-        return f'_OAuthSession(session_mode={self.session_mode}, status={self.status}, client={self._client})'
+        return f'_OAuthSession(session_mode={self.session_mode}, status={self.status})'
 
     def __str__(self):
-        return f'_OAuthSession(session_mode={self.session_mode}, status={self.status}, client={self._client})'
+        return f'_OAuthSession(session_mode={self.session_mode}, status={self.status})'
     
 class _BasicAuthSession(PayPalSession):
     """
@@ -295,7 +303,7 @@ class _BasicAuthSession(PayPalSession):
         the client & secret will always travel through the network.
     """
     def __init__(self, session_mode: SessionMode, token: PayPalToken, client: str, secret: str):
-        super().__init__(SessionType.BASIC, session_mode, token)
+        super().__init__(AuthType.BASIC, session_mode, token)
         self._client = client
         self._secret = secret
     
@@ -315,7 +323,11 @@ class _BasicAuthSession(PayPalSession):
             kwargs['headers'] = self._prepare_headers(token, kwargs.get('headers'))
         else:
             kwargs['auth'] = HTTPBasicAuth(self._client, self._secret)
-        return get(url, params, **kwargs)
+        
+        response = get(url, params, **kwargs)        
+        if response.status_code == 401:
+            raise IdentityError(response)
+        return response
 
     def post(self, url: str, body, **kwargs):
         token = self._check_token()        
@@ -324,7 +336,11 @@ class _BasicAuthSession(PayPalSession):
             kwargs['headers'] = self._prepare_headers(token, kwargs.get('headers'))
         else:
             kwargs['auth'] = HTTPBasicAuth(self._client, self._secret)
-        return post(url, body, None, **kwargs)
+
+        response = post(url, body, None, **kwargs)        
+        if response.status_code == 401:
+            raise IdentityError(response)
+        return response
 
     def put(self, url: str, body, **kwargs):
         token = self._check_token()        
@@ -333,7 +349,11 @@ class _BasicAuthSession(PayPalSession):
             kwargs['headers'] = self._prepare_headers(token, kwargs.get('headers'))
         else:
             kwargs['auth'] = HTTPBasicAuth(self._client, self._secret)
-        return put(url, body, **kwargs)
+        
+        response = put(url, body, **kwargs)
+        if response.status_code == 401:
+            raise IdentityError(response)
+        return response
 
     def patch(self, url: str, body, **kwargs):
         token = self._check_token()        
@@ -342,7 +362,11 @@ class _BasicAuthSession(PayPalSession):
             kwargs['headers'] = self._prepare_headers(token, kwargs.get('headers'))
         else:
             kwargs['auth'] = HTTPBasicAuth(self._client, self._secret)
-        return patch(url, body, **kwargs)
+        
+        response = patch(url, body, **kwargs)
+        if response.status_code == 401:
+            raise IdentityError(response)
+        return response
 
     def delete(self, url: str, **kwargs):
         token = self._check_token()        
@@ -351,7 +375,11 @@ class _BasicAuthSession(PayPalSession):
             kwargs['headers'] = self._prepare_headers(token, kwargs.get('headers'))
         else:
             kwargs['auth'] = HTTPBasicAuth(self._client, self._secret)
-        return delete(url, **kwargs)
+
+        response = delete(url, **kwargs)
+        if response.status_code == 401:
+            raise IdentityError(response)
+        return response
 
     def _dispose(self):
         self._client = None
@@ -377,7 +405,7 @@ class _RefreshableSession(PayPalSession):
         This session can receive flags to limit the refresh count.
     """
     def __init__(self, session_mode: SessionMode, token: PayPalToken, client:str, secret: str, refresh_limit:int=None):
-        super().__init__(SessionType.REFRESHABLE, session_mode, token)
+        super().__init__(AuthType.REFRESHABLE, session_mode, token)
         self._client = client
         self._secret = secret
         self._refresh_limit = refresh_limit
@@ -391,7 +419,7 @@ class _RefreshableSession(PayPalSession):
             self._paypal_token = _authenticate(self._client, self._secret, self.session_mode)
             self.status = SessionStatus.ACTIVE
 
-        if self.status != SessionStatus.ACTIVE:        
+        if self.status != SessionStatus.ACTIVE:
             raise ExpiredSessionError(self)
 
         return self._paypal_token
@@ -441,7 +469,7 @@ def session_from_token(token: PayPalToken, mode: SessionMode) -> PayPalSession:
     """
     return _OAuthSession(mode, token)
 
-def authenticate(client_id: str, secret: str, mode: SessionMode, session_type: SessionType=SessionType.REFRESHABLE, **kwargs) -> PayPalSession:
+def authenticate(client_id: str, secret: str, mode: SessionMode, auth_type: AuthType=AuthType.REFRESHABLE, **kwargs) -> PayPalSession:
     """Creates a session for a given user. If a session handles any kind of 
        flags it can be received as a kwarg. 
        
@@ -451,17 +479,64 @@ def authenticate(client_id: str, secret: str, mode: SessionMode, session_type: S
         client_id {str} -- paypal client id
         secret {str} -- paypal client secret
         mode {SessionMode} -- Desired session mode (LIVE or SANDBOX)
-        session_type {SessionType} -- Desired session type (BASIC, TOKEN, REFRESHABLE)
+        auth_type {AuthType} -- Desired session type (BASIC, TOKEN, REFRESHABLE)
 
     Raises:
-        AuthenticationError: If the user fails to authenticate
+        IdentityError: If the user fails to authenticate
     
     Returns:
         PayPalSession -- A paypal session for all the api http requests
     """
-    if session_type == SessionType.TOKEN:
+    if auth_type == AuthType.TOKEN:
         return session_from_token(_authenticate(client_id, secret, mode), mode)    
     token = _authenticate(client_id, secret, mode)
-    if session_type == SessionType.BASIC:
+    if auth_type == AuthType.BASIC:
         return _BasicAuthSession(mode, token, client_id, secret)
     return _RefreshableSession(mode, token, client_id, secret, kwargs.get('refresh_limit'))
+
+def test_invalid(session :PayPalSession):
+    try:
+        with session:
+            pass
+        session.get('https://api.sandbox.paypal.com/v2/payments/authorizations/6W688518YP6703149')
+        raise AssertionError('This must be unreachable')
+    except ExpiredSessionError:
+        print('Good Job!!! Expired!!')
+
+if __name__ == '__main__':
+    client = ''
+    secret = ''
+    session_mode = SessionMode.SANDBOX
+
+    test_url = 'https://api.sandbox.paypal.com/v2/payments/authorizations/6W688518YP6703149'
+
+    oauth_session = authenticate(client, secret, session_mode, AuthType.TOKEN)
+    response = oauth_session.get(test_url)
+    oauth_session2 = session_from_token(oauth_session._paypal_token, session_mode)
+    response = oauth_session2.get(test_url)
+
+    with authenticate(client, secret, session_mode, AuthType.BASIC) as basic:
+        response = basic.get(test_url)
+
+    test_invalid(oauth_session)
+    test_invalid(oauth_session2)
+    
+    basic2 = authenticate(client, secret, session_mode, AuthType.BASIC)
+    response = basic2.get(test_url)
+    basic2._paypal_token = None
+    response = basic2.get(test_url)
+
+    refre = authenticate(client, secret, session_mode)
+    response = refre.get(test_url)
+
+    test_invalid(oauth_session)
+    test_invalid(oauth_session2)
+    test_invalid(basic2)
+    test_invalid(refre)
+    
+    with authenticate(client, secret, session_mode) as default:
+        response = default.get(test_url)
+    
+    refre2 = _RefreshableSession(session_mode, _authenticate(client, secret, session_mode), client, secret, 1)
+    response = refre2.get(test_url)
+    refre2._paypal_token = None
