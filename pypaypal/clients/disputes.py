@@ -21,7 +21,7 @@ from pypaypal.entities.base import (
     PaypalApiResponse, 
     PaypalPage, 
     PaypalApiBulkResponse, 
-    PaypalAmount, 
+    Money, 
     PaypalPortableAddress 
 )
 
@@ -88,7 +88,7 @@ class DisputeClient(ClientBase):
         items = [ Dispute.serialize_from_json(x) for x in json_response['items']]
         links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in json_response['links']]
 
-        return PaypalPage(False, api_response, json_response['total_items'], json_response['total_pages'], items, links)
+        return PaypalPage(False, api_response, json_response.get('total_items'), json_response.get('total_pages'), items, links)
 
     def list_disputes_from_link(self, link: ActionLink) -> PaypalPage[Dispute]:
         """Performs an API call to lists disputes inside a page
@@ -205,7 +205,7 @@ class DisputeClient(ClientBase):
         
         return PaypalApiBulkResponse(False, response, ActionLink.serialize_from_json(response['links']))
 
-    def accept_claim(self, dispute_id: str, refund_amount: PaypalAmount= None, **kwargs) -> PaypalApiBulkResponse[ActionLink]:
+    def accept_claim(self, dispute_id: str, refund_amount: Money= None, **kwargs) -> PaypalApiBulkResponse[ActionLink]:
         """Calls the paypal API to accept a claim & close the dispute in favor of the customer
         
         Arguments:
@@ -216,7 +216,7 @@ class DisputeClient(ClientBase):
             accept_claim_reason {str} -- Reason to accept the claim (default REASON_NOT_SET)
             invoice_id {str} -- The merchant-provided ID of the invoice for the refund. 
             return_shipping_address {PaypalPortableAddress} --  The return address for the item.
-            refund_amount {PaypalAmount} -- To accept a customer's claim, the amount that the merchant agrees to refund the customer.
+            refund_amount {Money} -- To accept a customer's claim, the amount that the merchant agrees to refund the customer.
         Returns:
             PaypalApiBulkResponse[ActionLink] -- action links related to the dispute
         """
@@ -300,7 +300,7 @@ class DisputeClient(ClientBase):
         """
         return self._execute_basic_dispute_action(parse_url(self._base_url, dispute_id,'deny-offer'), {'note':note})
 
-    def make_return_offer(self, dispute_id: str, note: str, offer_type: str, invoice_id: str=None, offer_amt: PaypalAmount=None, return_addr: PaypalPortableAddress=None) -> PaypalApiBulkResponse[ActionLink]:
+    def make_return_offer(self, dispute_id: str, note: str, offer_type: str, invoice_id: str=None, offer_amt: Money=None, return_addr: PaypalPortableAddress=None) -> PaypalApiBulkResponse[ActionLink]:
         """Calls the API to make an offer to the other party to resolve a dispute
         
         Arguments:
@@ -309,10 +309,10 @@ class DisputeClient(ClientBase):
             offer_type {str} -- The merchant-proposed offer type for the dispute
 
         Keyword Arguments:
-            offer_amt {PaypalAmount} --  The amount proposed to resolve the dispute. 
+            offer_amt {Money} --  The amount proposed to resolve the dispute. 
             invoice_id {str} -- The merchant-provided ID of the invoice for the refund. 
             return_shipping_address {PaypalPortableAddress} --  The return address for the item.
-            refund_amount {PaypalAmount} -- To accept a customer's claim, the amount that the merchant agrees to refund the customer.
+            refund_amount {Money} -- To accept a customer's claim, the amount that the merchant agrees to refund the customer.
 
         Returns:
             PaypalApiBulkResponse[ActionLink] -- action links related to the dispute
@@ -386,7 +386,7 @@ class DisputeClient(ClientBase):
 
     @classmethod
     def for_session(cls: T, session: PayPalSession) -> T:
-        """Creates a tracker client from a given paypal session
+        """Creates a client from a given paypal session
         
         Arguments:
             cls {T} -- class reference

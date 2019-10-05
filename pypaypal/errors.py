@@ -50,10 +50,10 @@ class PaypalRequestError(Exception):
         super().__init__(details.message)
         self.details = details
 
-class EntityRefreshError(Exception):
-    """
-      Error raised when there's a failure refreshing an entity  
-    """
-    def __init__(self, entity):
-        super().__init__(f'There was an error refreshing an entity of {type(entity)}')
-    
+# class EntityRefreshError(Exception):
+#     """
+#       Error raised when there's a failure refreshing an entity  
+#     """
+#     def __init__(self, entity):
+#         super().__init__(f'There was an error refreshing an entity of {type(entity)}')
+

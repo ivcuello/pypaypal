@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Type, List
 
 import dateutil.parser
-from pypaypal.entities.base import T, PayPalEntity, ResponseType, ActionLink, PaypalAmount, PatchUpdateRequest, PaypalMessage, PaypalTransaction
+from pypaypal.entities.base import T, PayPalEntity, ResponseType, ActionLink, Money, PatchUpdateRequest, PaypalMessage, PaypalTransaction
 
 class DisputeUpdateRequest(PatchUpdateRequest):
     """Update request for PATCH dispute updates
@@ -78,14 +78,14 @@ class DisputeEvidence(PayPalEntity):
 class DisputeOutcome(PayPalEntity):
     """Dispute outcome object representation    
     """
-    def __init__(self, outcome_code: str, amount_refunded: PaypalAmount, **kwargs):
+    def __init__(self, outcome_code: str, amount_refunded: Money, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.outcome_code = outcome_code
         self.amount_refunded = amount_refunded
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amount = PaypalAmount.serialize_from_json(json_data['amount_refunded'])
+        amount = Money.serialize_from_json(json_data['amount_refunded'])
         
         return cls(
             json_data['outcome_code'], amount, json_response= json_data, response_type = response_type
@@ -95,7 +95,7 @@ class Dispute(PayPalEntity):
     """Dispute object representation
     """
 
-    def __init__(self, dispute_id: str, reason: str, status: str, amount: PaypalAmount, **kwargs):
+    def __init__(self, dispute_id: str, reason: str, status: str, amount: Money, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.reason = reason
         self.status = status
@@ -138,11 +138,11 @@ class Dispute(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
-        amount = PaypalAmount.serialize_from_json(json_data['dispute_amount'])
+        amount = Money.serialize_from_json(json_data['dispute_amount'])
         offer, dispute_outcome, messages, disputed_transactions = None, None, [], []
 
         if 'offer' in json_data.keys():
-            offer = PaypalAmount.serialize_from_json(json_data['offer'], response_type)
+            offer = Money.serialize_from_json(json_data['offer'], response_type)
         
         if 'dispute_outcome' in json_data.keys():
             dispute_outcome = DisputeOutcome.serialize_from_json(json_data['dispute_outcome'], response_type)
