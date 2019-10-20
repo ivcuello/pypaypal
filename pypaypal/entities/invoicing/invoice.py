@@ -9,23 +9,94 @@ import dateutil.parser
 
 from pypaypal.entities.base import ( 
     T, 
+    Tax,
     Item,
     Refund,
+    Discount,
     DateRange,
     ActionLink, 
     PaypalName,
     AmountRange, 
-    ShippingCost,
     PayPalEntity, 
     ResponseType, 
     Money, 
     RecipientInfo,
     PaypalPhoneDetail,
-    AmountWithBreakdown,
     PaypalPortableAddress
 )
 
 from pypaypal.entities.invoicing.template import Template
+
+class AggregatedDiscount(PayPalEntity):
+    """Aggregated discount object representation
+    """
+    def __init__(self, invoice_discount: Discount, item_discount: Money, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.item_discount = item_discount
+        self.invoice_discount = invoice_discount
+    
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        itm_disc = Discount.serialize_from_json(json_data['item_discount'])
+        inv_disc = Discount.serialize_from_json(json_data['invoice_discount'])
+
+        return cls(inv_disc, itm_disc, json_response= json_data, response_type = response_type)
+
+class ShippingCost(PayPalEntity):
+    """Shipping Cost object representation
+    """
+    def __init__(self, tax: Tax, amount: Money, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.tax = tax
+        self.amount = amount
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        tax = Discount.serialize_from_json(json_data['tax'])
+        amt = Money.serialize_from_json(json_data['amount'])
+        return cls(tax, amt, json_response= json_data, response_type = response_type)
+
+class CustomAmount(PayPalEntity):
+    """Custom amount object representation
+    """
+    def __init__(self, label: str, amount: Money, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.label = label
+        self.amount = amount
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        amt = Money.serialize_from_json(json_data['amount'])
+        return cls(json_data['label'], amt, json_response= json_data, response_type = response_type)
+
+class AmountWithBreakdown(PayPalEntity):
+    """Amount with breakdown object representation
+    """
+
+    def __init__(self, item_total: Money, discount: AggregatedDiscount, tax_total: Money, shipping: ShippingCost, custom: CustomAmount, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))        
+        self.item_total = item_total
+        self.discount = discount
+        self.tax_total = tax_total
+        self.shipping = shipping
+        self.custom = custom
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        item_total, discount, tax_total, shipping, custom = None, None, None, None, None
+        
+        if 'item_total' in json_data.keys():
+            item_total = Money.serialize_from_json(json_data['item_total'])
+        if 'discount' in json_data.keys():
+            discount = AggregatedDiscount.serialize_from_json(json_data['discount'])
+        if 'tax_total' in json_data.keys():
+            tax_total = Money.serialize_from_json(json_data['tax_total'])
+        if 'shipping' in json_data.keys():
+            shipping = ShippingCost.serialize_from_json(json_data['shipping'])
+        if 'custom' in json_data.keys():
+            custom = CustomAmount.serialize_from_json(json_data['custom'])
+
+        return cls(item_total, discount, tax_total, shipping, custom, json_response= json_data, response_type = response_type)
 
 class InvoicePaymentTerm(PayPalEntity):
     """Invoice payment term object representation
