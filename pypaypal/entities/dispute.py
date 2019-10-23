@@ -27,7 +27,7 @@ class DisputeTracker(PayPalEntity):
         self.carrier_name_other = kwargs.get('carrier_name_other')
 
     @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:       
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
         return cls(
             json_data['tracking_number'], json_data['carrier_name'],  
             json_response= json_data, response_type = response_type

@@ -59,7 +59,7 @@ class OrderClient(ClientBase):
         Returns:
             PaypalApiResponse[Order] -- An api response with the order
         """
-        url = parse_url(self._base_url)
+        url = self._base_url
         
         headers = { 'Prefer': response_type.as_header_value() }
 
