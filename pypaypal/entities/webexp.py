@@ -3,14 +3,10 @@
 """
 
 from enum import Enum
-from datetime import datetime
 from typing import Type, List
-
-import dateutil.parser
 
 from pypaypal.entities.base import (
     T, 
-    ActionLink, 
     PayPalEntity, 
     ResponseType
 )

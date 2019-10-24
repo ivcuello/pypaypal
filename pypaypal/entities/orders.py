@@ -11,11 +11,13 @@ import dateutil.parser
 from pypaypal.entities.base import ( 
     T, 
     Money,
+    Payee,
     PaypalName,
     ActionLink,
     ResponseType,
     PayPalEntity,
     PaypalPhoneDetail,
+    PaymentInstruction,
     PaypalPortableAddress
 )
 
@@ -33,10 +35,6 @@ class OrderIntent(Enum):
 class TaxIdType(Enum):
     BR_CPF = 1 # Individual tax id type
     BR_CNPJ = 2 # Business tax id type
-
-class DisbursementMode(Enum):
-    INSTANT = 1
-    DELAYED = 2
 
 class ItemCategory(Enum):
     DIGITAL_GOODS = 1
@@ -247,68 +245,6 @@ class AmountWithBreakdown(PayPalEntity):
     @classmethod
     def create(cls, currency_code: str, value: str, breakdown: AmountWithBreakdown = None):
         return cls(currency_code, value, breakdown)
-
-class PayeeBase(PayPalEntity):
-    """Payee base object representation.
-    """
-    def __init__(self, email: str, merchant_id: str, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.email_address = email
-        self.merchant_id = merchant_id
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-            json_data['email_address'], json_data['merchant_id'],
-            json_response= json_data, response_type = response_type
-        )
-
-class Payee(PayeeBase):
-    """Payee object representation.
-    """
-    def __init__(self, email: str, merchant_id: str, **kwargs):
-        super().__init__(email, merchant_id, **kwargs)
-
-class PlatformFee(PayPalEntity):
-    """Platform Fee object representation.
-    """
-    def __init__(self, amount: Money, payee: PayeeBase, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.payee = payee
-        self.amount = amount
-    
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amount, payee = None, None
-
-        if 'amount' in json_data.keys():
-            amount = Money.serialize_from_json(json_data['amount'], response_type)
-        if 'payee' in json_data.keys():
-            payee = PayeeBase.serialize_from_json(json_data['payee'], response_type)
-
-        return cls(amount, payee, json_response= json_data, response_type = response_type)
-
-class PaymentInstruction(PayPalEntity):
-    """Payment instruction object representation.
-    """
-
-    def __init__(self, platform_fees: List[PlatformFee], disbursement_mode: str, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.platform_fees = platform_fees
-        self.disbursement_mode = disbursement_mode
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        platform_fees = []
-
-        if 'platform_fees' in json_data.keys():
-            platform_fees = [PlatformFee.serialize_from_json(x, response_type) for x in json_data['platform_fees']]
-
-        return cls(platform_fees, json_data['disbursement_mode'], json_response= json_data, response_type = response_type)
-
-    @classmethod
-    def create(cls, platform_fees: List[PlatformFee], disbursement_mode: DisbursementMode = DisbursementMode.INSTANT):
-        return cls(platform_fees, disbursement_mode.name)
 
 class Item(PayPalEntity):
     """Order item obj representation. Yes... it's different from the Item class in the base module

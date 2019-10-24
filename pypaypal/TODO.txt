@@ -1,7 +1,7 @@
 Invoicing Done
 Orders Done
 Payment Expirience Done
-Payments 
+Payments Done
 Payouts
 Paypal Sync
 Referenced Payouts
