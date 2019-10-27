@@ -70,7 +70,7 @@ class OrderClient(ClientBase):
         
         api_response = self._session.post(url, json.dumps(order.to_dict()), headers = headers)
 
-        if api_response.status_code != 201:
+        if api_response.status_code // 100 != 2:
             return PaypalApiResponse(True, api_response)
 
         return PaypalApiResponse(False, api_response, Order.serialize_from_json(api_response.json(), response_type))
