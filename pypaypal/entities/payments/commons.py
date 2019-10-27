@@ -35,7 +35,7 @@ class DisputeCategory(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(json_data.get('dispute_category'), json_response = json_data, response_type = response_type)
+        return cls(json_data, json_response = json_data, response_type = response_type)
 
     @classmethod
     def create(cls, reason: DisputeCategoryReason) -> 'DisputeCategory':
@@ -61,7 +61,7 @@ class SellerProtection(PayPalEntity):
         dispute_categories = []
         
         if 'dispute_categories' in json_data.keys():
-            dispute_categories = DisputeCategory.serialize_from_json(json_data['dispute_categories'], response_type)
+            dispute_categories = [DisputeCategory.serialize_from_json(x, response_type) for x in json_data['dispute_categories']]
 
         return cls(json_data.get('status'), dispute_categories, json_response = json_data, response_type = response_type)
 

@@ -100,7 +100,7 @@ class CaptureClient(ClientBase):
         if amount:
             body['amount'] = amount.to_dict()
 
-        api_response = self._session.post(url, json.dumps(body), heders = headers)
+        api_response = self._session.post(url, json.dumps(body), headers = headers)
 
         if api_response.status_code != 201:
             return PaypalApiResponse(True, api_response)

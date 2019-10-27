@@ -64,7 +64,7 @@ class AuthorizationClient(ClientBase):
         return PaypalApiResponse(False, api_response, Authorization.serialize_from_json(api_response.json()))
     
     def capture_authorized_payment(
-        self, authorization_id: str, invoice_id: str, note_to_payer: str, 
+        self, authorization_id: str, invoice_id: str = None, note_to_payer: str = None,
         instruction: PaymentInstruction = None, amount: Money = None, final_capture: bool = False,
         request_id: str = None, response_type: ResponseType = ResponseType.MINIMAL) -> PaypalApiResponse[Capture]:
         """Calls the paypal API to capture an authorized payment, by ID.
@@ -104,7 +104,7 @@ class AuthorizationClient(ClientBase):
         if amount:
             body['amount'] = amount.to_dict()
 
-        api_response = self._session.post(url, json.dumps(body), heders = headers)
+        api_response = self._session.post(url, json.dumps(body), headers = headers)
 
         if api_response.status_code != 201:
             return PaypalApiResponse(True, api_response)
@@ -135,7 +135,7 @@ class AuthorizationClient(ClientBase):
         if amount:
             body['amount'] = amount.to_dict()
 
-        api_response = self._session.post(url, json.dumps(body), heders = headers)
+        api_response = self._session.post(url, json.dumps(body), headers = headers)
 
         if api_response.status_code != 201:
             return PaypalApiResponse(True, api_response)
@@ -159,7 +159,7 @@ class AuthorizationClient(ClientBase):
         url = parse_url(self._base_url, authorization_id, 'void')
 
         if auth_assertion_token:
-            api_response = self._session.post(url, None, heders = {'PayPal-Auth-Assertion' : auth_assertion_token})
+            api_response = self._session.post(url, None, headers = {'PayPal-Auth-Assertion' : auth_assertion_token})
         else:
             api_response = self._session.post(url, None)
 

@@ -21,6 +21,9 @@ from pypaypal.entities.base import (
     PaypalPortableAddress
 )
 
+from pypaypal.entities.payments.captures import Capture
+from pypaypal.entities.payments.authorizations import Authorization
+
 class PhoneType(Enum):
     FAX = 1
     HOME = 2
@@ -85,7 +88,6 @@ class CardType(Enum):
 
 class TokenType(Enum):
     BILLING_AGREEMENT = 1 # Approved recurring payment for goods or services.
-
 
 class TypedPhone(PayPalEntity):
     """Paypal Phone with type object representation.
@@ -152,7 +154,7 @@ class Payer(PayPalEntity):
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        if['_birth_date'] in d.keys():
+        if '_birth_date' in d.keys():
             d['birth_date'] = d.pop('_birth_date')
         return d
 
@@ -243,7 +245,7 @@ class AmountWithBreakdown(PayPalEntity):
         )
     
     @classmethod
-    def create(cls, currency_code: str, value: str, breakdown: AmountWithBreakdown = None):
+    def create(cls, *, currency_code: str, value: str, breakdown: AmountBreakdown = None):
         return cls(currency_code, value, breakdown)
 
 class Item(PayPalEntity):
@@ -280,8 +282,9 @@ class Item(PayPalEntity):
     
     @classmethod
     def create(
-        cls, name: str, unit_amount: Money, tax: Money, quantity: int, 
-        category: ItemCategory, *, description: str = None, sku: str = None
+        cls, *, name: str, unit_amount: Money, quantity: int, 
+        category: ItemCategory, tax: Money = None, description: str = None, 
+        sku: str = None
     ):
         return cls(name, unit_amount, tax, quantity, category.name, description, sku)
 
@@ -320,6 +323,25 @@ class ShippingDetail(PayPalEntity):
     def create(cls, full_name: str, address: PaypalPortableAddress) -> 'ShippingDetail':
         return cls(Name(full_name), address)
 
+class OrderPayment(PayPalEntity):
+    """Payment attr for orders
+    """
+    def __init__(self, authorizations: List[Authorization], captures: List[Capture], **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.captures = captures
+        self.authorizations = authorizations
+    
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        captures, authorizations = None, None
+
+        if 'captures' in json_data.keys():
+            captures = [Capture.serialize_from_json(x, response_type) for x in json_data['captures']]
+        if 'authorizations' in json_data.keys():
+            authorizations = [Authorization.serialize_from_json(x, response_type) for x in json_data['authorizations']]
+
+        return cls(authorizations, captures, json_response= json_data, response_type = response_type)
+
 class PurchaseUnitRequest(PayPalEntity):
     """Purchase unit object representation.
     """
@@ -327,12 +349,13 @@ class PurchaseUnitRequest(PayPalEntity):
         self, reference_id: str, amount: AmountWithBreakdown, payee: Payee, 
         payment_instruction: PaymentInstruction, description: str, custom_id: str,
         invoice_id: str, pur_id: str, soft_descriptor: str, items: List[Item], 
-        shipping: ShippingDetail, **kwargs
+        shipping: ShippingDetail, payments: OrderPayment = None, **kwargs
     ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.reference_id = reference_id
         self.amount = amount
         self.payee  = payee
+        self.payments = payments
         self.payment_instruction = payment_instruction
         self.description = description
         self.custom_id = custom_id
@@ -342,9 +365,17 @@ class PurchaseUnitRequest(PayPalEntity):
         self.items  = items
         self.shipping = shipping
 
+    @property
+    def captures(self) -> List[Capture]:
+        return self.payments.captures if self.payments and self.payments.captures else []
+
+    @property
+    def authorizations(self) -> List[Authorization]:
+        return self.payments.authorizations if self.payments and self.payments.authorizations else []
+
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        payee, amount, payment_instruction, shipping, items = None, None, None, None, []
+        payee, amount, payment_instruction, shipping, items, payments = None, None, None, None, [], None
         
         if 'payee' in json_data.keys():
             payee = Payee.serialize_from_json(json_data['payee'], response_type)
@@ -354,11 +385,13 @@ class PurchaseUnitRequest(PayPalEntity):
             payment_instruction = PaymentInstruction.serialize_from_json(json_data['payment_instruction'], response_type)
         if 'shipping' in json_data.keys():
             shipping = ShippingDetail.serialize_from_json(json_data['shipping'], response_type)
+        if 'payments' in json_data.keys():
+            payments = OrderPayment.serialize_from_json(json_data['payments'], response_type)
 
         return cls(
             json_data.get('reference_id'), amount, payee, payment_instruction, json_data.get('description'), 
-            json_data.get('custom_id'), json_data.get('invoice_id'), json_data.get('pur_id'), json_data.get('soft_descriptor'), 
-            items, shipping, json_response= json_data, response_type = response_type
+            json_data.get('custom_id'), json_data.get('invoice_id'), json_data.get('id'), json_data.get('soft_descriptor'), 
+            items, shipping, payments, json_response= json_data, response_type = response_type
         )
 
     @classmethod
@@ -369,7 +402,7 @@ class PurchaseUnitRequest(PayPalEntity):
         shipping: ShippingDetail = None
     ):
         return cls(
-            amount, reference_id, payee, payment_instruction, description, custom_id, 
+            reference_id, amount, payee, payment_instruction, description, custom_id, 
             invoice_id, pur_id, soft_descriptor, items, shipping
         )
 
@@ -425,8 +458,8 @@ class OrderApplicationContext(PayPalEntity):
         )
     
     @classmethod
-    def create(cls, brand_name: str, locale: str, return_url: str, cancel_url: str, 
-        payment_method: PaymentMethod, landing_page: LandingPage = LandingPage.NO_PREFERENCE,
+    def create(cls, brand_name: str = None, locale: str = None, return_url: str = None, cancel_url: str = None, 
+        payment_method: PaymentMethod = None, landing_page: LandingPage = LandingPage.NO_PREFERENCE,
         shipping_preference: ShippingPreference = ShippingPreference.GET_FROM_FILE, 
         user_action: UserAction = UserAction.CONTINUE ) -> 'OrderApplicationContext':
         return cls(
@@ -445,6 +478,7 @@ class Order(PayPalEntity):
         self.purchase_units = purchase_units
         self.application_context = application_context
         self.status = self._json_response.get('status')
+        self.id = self._json_response.get('id', kwargs.get('id'))
         self._create_time = self._json_response.get('create_time')
         self._update_time = self._json_response.get('update_time')
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
@@ -504,7 +538,7 @@ class Order(PayPalEntity):
 
     def to_dict(self) -> dict:
         d = super().to_dict()
-        if['_birth_date'] in d.keys():
+        if '_birth_date' in d.keys():
             d['birth_date'] = d.pop('_birth_date')
         return d
 
@@ -514,17 +548,21 @@ class Order(PayPalEntity):
 
         if 'payer' in json_data.keys():
             payer = Payer.serialize_from_json(json_data['payer'], response_type)
+        
         if 'application_context' in json_data.keys():
             application_context = OrderApplicationContext.serialize_from_json(json_data['application_context'], response_type)
         
         if 'purchase_units' in json_data.keys():
             purchase_units = [PurchaseUnitRequest.serialize_from_json(x, response_type) for x in json_data['purchase_units']]
 
-        return cls(json_data.get('intent'), payer, purchase_units, application_context, json_response= json_data, response_type = response_type)
+        return cls(
+            json_data.get('intent'), payer, purchase_units, application_context,
+            json_response= json_data, response_type = response_type
+        )
 
     @classmethod
-    def create(cls, intent: OrderIntent, payer: Payer, purchase_units: List[PurchaseUnitRequest], application_context: OrderApplicationContext = None) -> 'Order':
-        return cls(intent, payer, purchase_units, application_context)
+    def create(cls, *, intent: OrderIntent, purchase_units: List[PurchaseUnitRequest], payer: Payer = None, application_context: OrderApplicationContext = None) -> 'Order':
+        return cls(intent.name, payer, purchase_units, application_context)
 
 class Card(PayPalEntity):
     """PaymentSource.card object representation.

@@ -6,9 +6,9 @@ from enum import Enum
 from datetime import datetime
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from email.mime.base import MIMEBase
 from typing import Type, TypeVar, List, Generic
-
 
 import dateutil.parser
 
@@ -74,7 +74,12 @@ class PayPalEntity(ABC):
     def to_dict(self) -> dict:
         d = copy.deepcopy(self.__dict__)
         pp_entity_props = { k : v.to_dict() for k,v in d.items() if isinstance(v, PayPalEntity) }
-        return { k : v for k,v in { **d, **pp_entity_props } if v != None }
+        
+        for k,v in d.items():
+            if isinstance(v, Iterable) and not isinstance(v, str):
+                d[k] = [ x.to_dict() if isinstance(x, PayPalEntity) else x for x in v ]
+
+        return { k : v for k,v in { **d, **pp_entity_props }.items() if v and k not in {'_response_type', '_json_response'} }
 
     @classmethod
     @abstractmethod
@@ -124,11 +129,11 @@ class ActionLink(PayPalEntity):
         """
         return cls(json_data['href'], json_data['rel'], json_data['method'], json_data = json_data, response_type = response_type)
 
-class PaypalApiResponse(Generic[Type[T]]):
+class PaypalApiResponse(Generic[T]):
     """Response wrapper for api responses
     """
     def __init__(self, errors: bool, api_response, parsed_response: Type[T]=None):
-        self.errors = errors
+        self.has_errors = errors
         self._raw_response = api_response
         self.parsed_response = parsed_response
     
@@ -154,7 +159,7 @@ class PaypalApiResponse(Generic[Type[T]]):
         """
         return cls(True, api_response, parsed_response)
 
-class PaypalApiBulkResponse(Generic[Type[T]]):
+class PaypalApiBulkResponse(Generic[T]):
     """Response wrapper for api responses
     """
     def __init__(self, errors: bool, api_response, parsed_response: List[Type[T]]=None):
@@ -184,7 +189,7 @@ class PaypalApiBulkResponse(Generic[Type[T]]):
         """
         return cls(True, api_response, parsed_response)
 
-class PaypalPage(Generic[Type[T]]):
+class PaypalPage(Generic[T]):
     """Response wrapper for paged responses
     """
     def __init__(self, error: bool, api_response, total_items: int, total_pages: int, elements: List[T], links: List[ActionLink]):
@@ -243,7 +248,6 @@ class PaypalPage(Generic[Type[T]]):
         """Factory method for unsuccessful requests
         """
         return cls(True, api_response, total_items, total_pages, elements, links)
-
 
 class Money(PayPalEntity):
     """Amount object definition for paypal request/responses
@@ -733,7 +737,6 @@ class PlatformFee(PayPalEntity):
     @classmethod
     def create(cls, amount: Money, payee: PayeeBase = None) -> 'PlatformFee':
         return cls(amount, payee)
-
 
 class PaymentInstruction(PayPalEntity):
     """Payment instruction object representation.
