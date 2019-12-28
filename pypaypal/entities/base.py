@@ -145,7 +145,7 @@ class PaypalApiResponse(Generic[T]):
             PayPalErrorDetail -- Error details if exists else None
         """
         data = self._raw_response.json()
-        return PayPalErrorDetail.serialize_from_json(data) if self.error and data else None
+        return PayPalErrorDetail.serialize_from_json(data) if self.has_errors and data else None
     
     @classmethod
     def success(cls, api_response, parsed_response: Type[T] = None) -> 'PaypalApiResponse':
@@ -175,7 +175,7 @@ class PaypalApiBulkResponse(Generic[T]):
             PayPalErrorDetail -- Error details if exists else None
         """
         data = self._raw_response.json()
-        return PayPalErrorDetail.serialize_from_json(data) if self.error and data else None
+        return PayPalErrorDetail.serialize_from_json(data) if self.has_errors and data else None
 
     @classmethod
     def success(cls, api_response, parsed_response: Type[T] = None) -> 'PaypalApiBulkResponse':
@@ -379,10 +379,14 @@ class PaypalAddressDetail:
     def street_type(self) -> str:
         return self._street.street_type if self._street else None
 
-class PaypalPortableAddress:
+class PaypalPortableAddress(PayPalEntity):
     """Paypal portable Addresses object representation
     """
-    def __init__(self, country_code: str, postal_code: str, address_lines: List[AddressLine], admin_areas: List[AdminArea], details: PaypalAddressDetail):
+    def __init__(
+            self, country_code: str, postal_code: str, address_lines: List[AddressLine], 
+            admin_areas: List[AdminArea], details: PaypalAddressDetail, **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.address_details = details
         self.postal_code = postal_code
         self.country_code = country_code
@@ -424,31 +428,27 @@ class PaypalPortableAddress:
         return self._adm_area_for_index(4)
 
     def to_dict(self) -> dict:
-        exclude = {'_admin_areas', '_address_lines', 'address_details'}
-        d = { k:v for k,v in copy.deepcopy(self.__dict__).items() if not k in exclude }
-        d['admin_area_1'] = self.admin_area_1
-        d['admin_area_2'] = self.admin_area_2
-        d['admin_area_3'] = self.admin_area_3
-        d['admin_area_4'] = self.admin_area_4
-        d['address_line_1'] = self.address_line_1
-        d['address_line_2'] = self.address_line_2
-        d['address_line_3'] = self.address_line_3
-
-        return { k:v for k,v in d if v != None }
+        d = { 
+            'postal_code': self.postal_code, 'country_code': self.country_code,
+            'admin_area_1': self.admin_area_1, 'admin_area_2': self.admin_area_2, 
+            'admin_area_3': self.admin_area_3, 'admin_area_4': self.admin_area_4,
+            'address_line_1': self.address_line_1, 'address_line_2': self.address_line_2,
+            'address_line_3': self.address_line_3
+        }
+        return { k:v for k,v in d.items() if v != None }
         
     @classmethod
     def serialize_from_json(cls: Type[P], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> P:
         adm_areas, addr_lines, details = [], [], None
         
         for i in range(1, 5):
-            prop = 'admin_area_{}'.format(i)
-            if prop in json_data.keys():
-                adm_areas.append(AdminArea(i, json_data[prop]))
-
-        for i in range(1, 4):
-            prop = 'address_line_{}'.format(i)
-            if prop in json_data.keys():
-                adm_areas.append(AddressLine(i, json_data[prop]))
+            adm = 'admin_area_{}'.format(i)
+            if adm in json_data.keys():
+                adm_areas.append(AdminArea(i, json_data[adm]))
+            if i <= 4:
+                addr = 'address_line_{}'.format(i)
+                if addr in json_data.keys():
+                    addr_lines.append(AddressLine(i, json_data[addr]))
 
         j_details = json_data.get('address_details')
 

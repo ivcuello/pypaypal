@@ -166,7 +166,7 @@ class AuthorizationClient(ClientBase):
         if api_response.status_code != 204:
             return PaypalApiResponse(True, api_response)
 
-        return PaypalApiResponse(False, api_response, Authorization.serialize_from_json(api_response.json()))
+        return PaypalApiResponse(False, api_response)
 
     @classmethod
     def for_session(cls: T, session: PayPalSession) -> T:

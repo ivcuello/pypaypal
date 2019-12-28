@@ -15,7 +15,11 @@ class PayPalErrorDetail:
         self.message = message
         self.information_link = info_link
         self._json_response = json_response
-    
+
+    @property
+    def debug_id(self) -> str:
+        return self._json_response.get('debug_id')
+
     @property
     def additional_details(self) -> List[dict]:
         return self._json_response.get('details')

@@ -42,6 +42,8 @@ _SANDBOX_RESOURCE_BASE_URL = parse_url(SANDBOX_API_BASE_URL, 'invoicing')
 
 T = TypeVar('T', bound = 'InvoiceClient')
 
+I = TypeVar('T', bound = 'InvoiceTemplateClient')
+
 class InvoiceClient(ClientBase):
     """Invoice v2 API client class
     """
@@ -453,7 +455,6 @@ class InvoiceClient(ClientBase):
         base_url = _LIVE_RESOURCE_BASE_URL if session.session_mode.is_live() else _SANDBOX_RESOURCE_BASE_URL
         return cls(base_url, session)
     
-
 class InvoiceTemplateClient(ClientBase):
     """Client for invoice template resources
     """
@@ -551,7 +552,7 @@ class InvoiceTemplateClient(ClientBase):
         return PaypalApiResponse.success(response, Invoice.serialize_from_json(response.json()))
 
     @classmethod
-    def for_session(cls: T, session: PayPalSession) -> T:
+    def for_session(cls: I, session: PayPalSession) -> I:
         """Creates a client from a given paypal session
         
         Arguments:
