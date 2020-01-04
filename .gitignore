@@ -5,3 +5,4 @@ __pycache__/
 *.egg
 .vscode
 pypaypal.egg-info/*
+pypaypal/TODO.txt

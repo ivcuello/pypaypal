@@ -2,7 +2,7 @@ Invoicing Done
 Orders Done
 Payment Expirience Done
 Payments Done
-Payouts
-Paypal Sync
+Payouts Done
+Paypal Sync Done
 Referenced Payouts
 Subscriptions

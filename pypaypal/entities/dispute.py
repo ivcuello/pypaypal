@@ -7,7 +7,101 @@ from datetime import datetime
 from typing import Type, List
 
 import dateutil.parser
-from pypaypal.entities.base import T, PayPalEntity, ResponseType, ActionLink, Money, PatchUpdateRequest, PaypalMessage, PaypalTransaction
+
+from pypaypal.entities.base import ( 
+    T, 
+    Money, 
+    ActionLink, 
+    PayPalEntity, 
+    ResponseType, 
+    PaypalMessage, 
+    PaypalTransaction, 
+    PatchUpdateRequest 
+)
+
+class DisputeState(Enum):
+    """Enumeration of dispute states
+    """
+    # Filters the disputes in the response to those with the REQUIRED_ACTION dispute state.
+    REQUIRED_ACTION =  1
+    # Filters the disputes in the response to those with the REQUIRED_OTHER_PARTY_ACTION dispute state.
+    REQUIRED_OTHER_PARTY_ACTION =  2
+    # Filters the disputes in the response to those with the UNDER_PAYPAL_REVIEW dispute state.
+    UNDER_PAYPAL_REVIEW = 3 
+    # Filters the disputes in the response to those with the RESOLVED dispute state.
+    RESOLVED = 4
+    # Filters the disputes in the response to those with the OPEN_INQUIRIES dispute state.
+    OPEN_INQUIRIES = 5
+    # Filters the disputes in the response to those with the APPEALABLE dispute state.
+    APPEALABLE = 6
+
+class DisputeStatus(Enum):
+    """Enumeration for the possible dispute status
+    """
+    # The dispute is open.
+    OPEN = 1
+    # The dispute is waiting for a response from the customer.
+    WAITING_FOR_BUYER_RESPONSE = 2
+    # The dispute is waiting for a response from the merchant.
+    WAITING_FOR_SELLER_RESPONSE = 3
+    # The dispute is under review with PayPal.
+    UNDER_REVIEW = 4
+    # The dispute is resolved.
+    RESOLVED = 5
+    # The default status if the dispute does not have one of the other statuses.
+    OTHER = 6
+
+class DisputeReason(Enum):
+    """Enumeration with known dispute reasons
+    """
+    # The customer did not receive the merchandise or service.
+    MERCHANDISE_OR_SERVICE_NOT_RECEIVED = 1
+    # The customer reports that the merchandise or service is not as described.
+    MERCHANDISE_OR_SERVICE_NOT_AS_DESCRIBED = 2
+    # The customer did not authorize purchase of the merchandise or service.
+    UNAUTHORISED = 3
+    # The refund or credit was not processed for the customer.
+    CREDIT_NOT_PROCESSED = 4
+    # The transaction was a duplicate.
+    DUPLICATE_TRANSACTION = 5
+    # The customer was charged an incorrect amount.
+    INCORRECT_AMOUNT = 6
+    # The customer paid for the transaction through other means.
+    PAYMENT_BY_OTHER_MEANS = 7
+    # The customer was being charged for a subscription or a recurring transaction that was canceled.
+    CANCELED_RECURRING_BILLING = 8
+    # A problem occurred with the remittance.
+    PROBLEM_WITH_REMITTANCE = 9
+    # Other.
+    OTHER = 10
+
+class DisputeChannel(Enum):
+    """Enumeration with known dispute channels
+    """
+    # The customer contacts PayPal to file a dispute with the merchant.
+    INTERNAL = 1
+    # The customer contacts their card issuer or bank to request a refund.
+    EXTERNAL = 2
+
+class DisputeLifeCycleStage(Enum):
+    """Enumeration with known dispute life cycle stages
+    """
+    # A customer and merchant interact in an attempt to resolve a dispute without escalation to PayPal. Occurs when the customer:
+    #     Has not received goods or a service.
+    #     Reports that the received goods or service are not as described.
+    #     Needs more details, such as a copy of the transaction or a receipt.
+    INQUIRY = 1
+    # A customer or merchant escalates an inquiry to a claim, which authorizes PayPal to investigate the case and make a determination. Occurs only when the dispute channel is INTERNAL. This stage is a PayPal dispute lifecycle stage and not a credit card or debit card chargeback. All notes that the customer sends in this stage are visible to PayPal agents only. The customer must wait for PayPal’s response before the customer can take further action. In this stage, PayPal shares dispute details with the merchant, who can complete one of these actions:
+    #         Accept the claim.
+    #         Submit evidence to challenge the claim.
+    #         Make an offer to the customer to resolve the claim.
+    CHARGEBACK = 2
+    # The first appeal stage for merchants. A merchant can appeal a chargeback if PayPal's decision is not in the merchant's favor.
+    # If the merchant does not appeal within the appeal period, PayPal considers the case resolved.
+    PRE_ARBITRATION = 3
+    # The second appeal stage for merchants. A merchant can appeal a dispute for a second time if the first appeal was denied. 
+    # If the merchant does not appeal within the appeal period, the case returns to a resolved status in pre-arbitration stage.
+    ARBITRATION = 4
 
 class DisputeUpdateRequest(PatchUpdateRequest):
     """Update request for PATCH dispute updates
@@ -50,7 +144,7 @@ class DisputeEvidenceInfo(PayPalEntity):
         return d
 
     @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:       
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
         trackers = [DisputeTracker.serialize_from_json(x) for x in json_data['evidence_info']['tracking_info']]        
     
         return cls(
@@ -60,7 +154,9 @@ class DisputeEvidenceInfo(PayPalEntity):
 class DisputeEvidence(PayPalEntity):
     """Dispute evidence for requests
     """
-    def __init__(self, evidence_type: str, notes: str, item_id: str, evidence_info: DisputeEvidence, **kwargs):
+    def __init__(
+        self, *, evidence_type: str = None, notes: str = None, 
+        item_id: str = None, evidence_info: DisputeEvidenceInfo = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.notes = notes
         self.item_id = item_id
@@ -70,10 +166,10 @@ class DisputeEvidence(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-            json_data['evidence_type'], json_data['notes'], json_data['item_id'], json_data['evidence_info'], 
-            json_response= json_data, response_type = response_type
-        )
+        args = { **json_data }
+        if 'evidence_info' in json_data.keys():
+            args['evidence_info'] = DisputeEvidenceInfo.serialize_from_json(args['evidence_info'])
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class DisputeOutcome(PayPalEntity):
     """Dispute outcome object representation    
@@ -95,23 +191,65 @@ class Dispute(PayPalEntity):
     """Dispute object representation
     """
 
-    def __init__(self, dispute_id: str, reason: str, status: str, amount: Money, **kwargs):
+    _ARRAY_TYPES = { 'messages': PaypalMessage, 'disputed_transactions': PaypalTransaction }
+    _ENTITY_TYPES = { 'offer': Money, 'dispute_amount': Money, 'dispute_outcome': DisputeOutcome }
+
+    def __init__(
+        self, *, dispute_id: str = None, reason: str = None, status: str = None, amount: Money = None, 
+        offer: Money = None, dispute_outcome: DisputeOutcome = None, messages: List[PaypalMessage] = [], 
+        disputed_transactions: List[PaypalTransaction] = [], dispute_channel: str = None, 
+        dispute_state: str = None, dispute_life_cycle_stage: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.offer = offer
         self.reason = reason
         self.status = status
+        self.messages = messages
         self.dispute_id = dispute_id
         self.dispute_amount = amount
-        self.offer = kwargs.get('offer')
-        self.messages = kwargs.get('messages')
-        self.dispute_outcome = kwargs.get('dispute_outcome')
-        self.disputed_transactions = kwargs.get('disputed_transactions')
+        self.dispute_state = dispute_state
+        self.dispute_channel = dispute_channel
+        self.dispute_outcome = dispute_outcome
+        self.disputed_transactions = disputed_transactions
+        self.dispute_life_cycle_stage = dispute_life_cycle_stage
         self.extensions = self._json_response.get('extensions', kwargs.get('extensions')) 
         self._update_time = self._json_response.get('update_time', kwargs.get('update_time')) 
         self._create_time = self._json_response.get('create_time', kwargs.get('create_time')) 
-        self.dispute_state = self._json_response.get('dispute_state', kwargs.get('dispute_state')) 
-        self.dispute_channel = self._json_response.get('dispute_channel', kwargs.get('dispute_channel')) 
-        self.dispute_life_cycle_stage = self._json_response.get('dispute_life_cycle_stage', kwargs.get('dispute_life_cycle_stage'))
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
+
+    @property
+    def dispute_state_enum(self) -> DisputeState:
+        try:
+            return DisputeState[self.dispute_state] if self.dispute_state else None
+        except:
+            return None
+    
+    @property
+    def reason_enum(self) -> DisputeReason:
+        try:
+            return DisputeReason[self.reason] if self.reason else None
+        except:
+            return None
+
+    @property
+    def status_enum(self) -> DisputeStatus:
+        try:
+            return DisputeStatus[self.status] if self.status else None
+        except:
+            return None
+
+    @property
+    def dispute_channel_enum(self) -> DisputeChannel:
+        try:
+            return DisputeChannel[self.dispute_channel] if self.dispute_channel else None
+        except:
+            return None       
+    
+    @property
+    def dispute_life_cycle_stage_enum(self) -> DisputeLifeCycleStage:
+        try:
+            return DisputeLifeCycleStage[self.dispute_life_cycle_stage] if self.dispute_life_cycle_stage else None
+        except:
+            return None
 
     @property
     def update_time(self) -> datetime:
@@ -138,23 +276,12 @@ class Dispute(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
-        amount = Money.serialize_from_json(json_data['dispute_amount'])
-        offer, dispute_outcome, messages, disputed_transactions = None, None, [], []
-
-        if 'offer' in json_data.keys():
-            offer = Money.serialize_from_json(json_data['offer'], response_type)
-        
-        if 'dispute_outcome' in json_data.keys():
-            dispute_outcome = DisputeOutcome.serialize_from_json(json_data['dispute_outcome'], response_type)
-
-        if 'messages' in json_data.keys():
-            messages = [ PaypalMessage.serialize_from_json(x, response_type) for x in json_data['messages'] ]
-
-        if 'disputed_transactions' in json_data.keys():
-            disputed_transactions = [ PaypalTransaction.serialize_from_json(x, response_type) for x in json_data['disputed_transactions'] ]
-
-        return cls(
-            json_data['dispute_id'], json_data['reason'], json_data['status'], amount, json_response= json_data, 
-            response_type = response_type, offer = offer, dispute_outcome = dispute_outcome, messages = messages, 
-            disputed_transactions = disputed_transactions
-        )
+        args = {
+            # Primitives
+            **json_data,
+            # Serialized types
+            **{ k : cls._ENTITY_TYPES[k].serialize_from_json(v) for k,v in json_data.items() if k in cls._ENTITY_TYPES and v }
+            # Serilized type arrays
+            **{ k : [cls._ARRAY_TYPES[k].serialize_from_json(v) for v in json_data[k]] for k in json_data.keys() if k in cls._ARRAY_TYPES }
+        }
+        return cls( **args, json_response= json_data, response_type = response_type)
