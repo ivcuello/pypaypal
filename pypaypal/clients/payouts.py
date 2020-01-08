@@ -76,7 +76,9 @@ class PayoutClient(ClientBase):
         if api_response.status_code // 100 != 2:
             return PaypalApiResponse.error(api_response)
 
-        return PaypalApiResponse.success(api_response, api_response.json().get('batch_header'))
+        j_data = api_response.json().get('batch_header')
+
+        return PaypalApiResponse.success(api_response, PayoutHeader.serialize_from_json(j_data) if j_data else None)
 
     def show_payout_batch_details(
         self, payout_batch_id: str, page: int = 1, page_size: int = 1000, 
