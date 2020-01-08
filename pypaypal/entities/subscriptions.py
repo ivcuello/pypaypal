@@ -40,6 +40,7 @@ class FrequencyIntervalUnit(Enum):
     # A yearly billing cycle.
     YEAR = 4
 
+class Interval
 
 class PricingScheme(PayPalEntity):
     """Billing cycle pricing scheme obj representation
