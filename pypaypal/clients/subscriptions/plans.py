@@ -45,6 +45,12 @@ class UpdatePricingSchemeRequest(NamedTuple):
     billing_cycle_sequence: int
     pricing_scheme: PricingScheme
 
+    def to_dict(self) -> dict:
+        return { 
+            'pricing_scheme': self.pricing_scheme,
+            'billing_cycle_sequence': self.billing_cycle_sequence            
+        }
+
 class PlanClient(ClientBase):
     """Plans resource group client class.
     """
@@ -71,7 +77,7 @@ class PlanClient(ClientBase):
         if request_id:
             headers['PayPal-Request-Id'] = request_id
         
-        api_response = self._session.post(url, json.dumps(body.to_dict()), headers = headers)
+        api_response = self._session.post(url, body, headers = headers)
 
         if api_response.status_code // 100 != 2:
             return PaypalApiResponse.error(api_response)
@@ -199,7 +205,6 @@ class PlanClient(ClientBase):
         
         return PaypalApiResponse.success(api_response)
 
-
     def update_pricing(self, plan_id: str, pricing_schemes: List[UpdatePricingSchemeRequest]) -> PaypalApiResponse:
         """Calls the API to update a plan's pricing scheme
         
@@ -210,8 +215,8 @@ class PlanClient(ClientBase):
         Returns:
             PaypalApiResponse -- Response with the operation status
         """
+        body = json.dumps([ x.to_dict() for x in pricing_schemes ])
         url = parse_url(self._base_url, plan_id, 'update-pricing-schemes')
-        body = json.dumps([ {x.billing_cycle_sequence, x.pricing_scheme.to_dict()} for x in pricing_schemes ])
         
         api_response = self._session.post(url, body)
 

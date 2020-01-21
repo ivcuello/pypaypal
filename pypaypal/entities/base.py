@@ -295,7 +295,6 @@ class PaypalPage(Generic[T]):
         elements = [ entity_class.serialize_from_json(x, response_type) for x in j_data.get(response_entity_key, [])]
         return cls(False, api_response, j_data.get('total_items'), j_data.get('total_pages'), elements, links)
 
-
 class Money(PayPalEntity):
     """Amount object definition for paypal request/responses
     """

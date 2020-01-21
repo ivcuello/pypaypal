@@ -20,6 +20,18 @@ from pypaypal.entities.base import (
 
 from pypaypal.entities.subscriptions.common import BillingCycleTenureType
 
+class SubscriptionTransactionStatus(Enum):
+    # The funds for this captured payment were credited to the payee's PayPal account.
+    COMPLETED = 1
+    # The funds could not be captured.
+    DECLINED = 2
+    # An amount less than this captured payment's amount was partially refunded to the payer.
+    PARTIALLY_REFUNDED = 3
+    # The funds for this captured payment was not yet credited to the payee's PayPal account.
+    PENDING = 4
+    # An amount greater than or equal to this captured payment's amount was refunded to the payer.
+    REFUNDED = 5
+
 class SubscriptionStatus(Enum):
     # The subscription is created but not yet approved by the buyer.
     APPROVAL_PENDING = 1
@@ -229,21 +241,21 @@ class Subscription(PayPalEntity):
             billing_info: BillingInfo = None, shipping_amount: Money = None,            
             application_context: SubscriptionApplicationContext = None, **kwargs
         ):
-            self.id = subscription_id
-            self.status = status
-            self.plan_id = plan_id 
-            self.quantity = quantity
-            self.subscriber = subscriber 
-            self.billing_info = billing_info
-            self.shipping_amount = shipping_amount 
-            self.status_change_note = status_change_note
-            self.application_context = kwargs.get('application_context')
-            self._update_time = self._json_response.get('update_time', kwargs.get('update_time'))
-            self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
-            self._start_time = self._json_response.get('_start_time', kwargs.get('_start_time'))
-            self._start_time = self._json_response.get('_start_time', kwargs.get('_start_time'))
-            self._status_update_time = self._json_response.get('_status_update_time', kwargs.get('_status_update_time'))
-            self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.id = subscription_id
+        self.status = status
+        self.plan_id = plan_id 
+        self.quantity = quantity
+        self.subscriber = subscriber 
+        self.billing_info = billing_info
+        self.shipping_amount = shipping_amount 
+        self.status_change_note = status_change_note
+        self.application_context = kwargs.get('application_context')
+        self._update_time = self._json_response.get('update_time', kwargs.get('update_time'))
+        self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
+        self._start_time = self._json_response.get('_start_time', kwargs.get('_start_time'))            
+        self._status_update_time = self._json_response.get('_status_update_time', kwargs.get('_status_update_time'))
+        self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
 
     @property
     def update_time(self) -> datetime:
@@ -307,7 +319,7 @@ class Subscription(PayPalEntity):
             subscriber: Subscriber = None, application_context: SubscriptionApplicationContext = None
         ) -> 'Subscription':
         return cls(
-            plan_id = plan_id, start_time = start_time, quantity = quantity,
+            plan_id = plan_id, start_time = start_time.strftime('%Y-%m-%dT%H:%M:%S'), quantity = quantity,
             shipping_amount = shipping_amount, subscriber = subscriber, 
             application_context = application_context
         )
@@ -316,4 +328,84 @@ class Subscription(PayPalEntity):
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
         args = super()._build_args(json_data, cls._ENTITY_TYPES)
         args['subscription_id'] = args.pop('id', None)
+        return cls(**args, json_response= json_data, response_type = response_type)
+
+
+class AmountWithBreakdown(PayPalEntity):
+    """Subscription transaction amount with breakdown
+    """
+    
+    _ENTITY_TYPES = { 
+        'net_amount': Money, 'gross_amount': Money, 'fee_amount': Money, 
+        'shipping_amount': Money, 'tax_amount': Money
+    }
+    
+    def __init__(
+            self, net_amount: Money, gross_amount: Money, 
+            fee_amount: Money = None, shipping_amount: Money = None, 
+            tax_amount: Money = None, **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.net_amount = net_amount
+        self.fee_amount = fee_amount
+        self.tax_amount = tax_amount
+        self.gross_amount = gross_amount
+        self.shipping_amount = shipping_amount
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
+
+class SubscriptionTransaction(PayPalEntity):
+    """A subscription transaction for querying purposes
+    """
+
+    _ENTITY_TYPES = { 
+        'payer_name': PaypalName, 'amount_with_breakdown': AmountWithBreakdown
+    }
+
+    def __init__(
+            self, status: str = None, transaction_id: str = None, 
+            amount_with_breakdown: AmountWithBreakdown = None, 
+            payer_name: PaypalName = None, payer_email: str = None, 
+            **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.status = status 
+        self.payer_name = payer_name
+        self.payer_email = payer_email
+        self.transaction_id = transaction_id
+        self.amount_with_breakdown = amount_with_breakdown
+        self._time = self._json_response.get('time', kwargs.get('time'))
+
+    @property
+    def status_enum(self) -> SubscriptionTransactionStatus:
+        """Status of the subscription transaction as an enum constant
+        
+        Returns:
+            PlanStatus -- An enumerated constant representing the subscription status or None
+        """
+        try:
+            return SubscriptionTransactionStatus[self.status] if self.status else None
+        except:
+            return None
+
+    @property
+    def time(self) -> datetime:
+        try:
+            return dateutil.parser.parse(self._time) if self._time else None
+        except:
+            return None
+
+    def to_dict(self) -> dict:
+        r = super().to_dict()
+        r['time'] = r.pop('_time', None)
+        r['id'] = r.pop('transaction_id', None)
+        return r
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        args['transaction_id'] = args.pop('id', None)
         return cls(**args, json_response= json_data, response_type = response_type)
