@@ -8,7 +8,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from email.mime.base import MIMEBase
-from typing import Type, TypeVar, List, Generic
+from typing import Type, TypeVar, List, Generic, Dict
 
 import dateutil.parser
 
@@ -54,6 +54,20 @@ class DisbursementMode(Enum):
     INSTANT = 1
     DELAYED = 2
 
+class AppCtxPayeePreference(Enum):
+    UNRESTRICTED = 1
+    IMMEDIATE_PAYMENT_REQUIRED = 2
+
+class AppCtxShippingPreference(Enum):
+    GET_FROM_FILE = 1
+    NO_SHIPPING = 2
+    SET_PROVIDED_ADDRESS = 3
+
+class AppCtxLandingPage(Enum):
+    LOGIN = 1
+    BILLING = 2
+    NO_PREFERENCE = 3
+
 class PayPalEntity(ABC):
     """
         Base class with common properties for serialized paypal entities
@@ -79,7 +93,30 @@ class PayPalEntity(ABC):
             if isinstance(v, Iterable) and not isinstance(v, str):
                 d[k] = [ x.to_dict() if isinstance(x, PayPalEntity) else x for x in v ]
 
-        return { k : v for k,v in { **d, **pp_entity_props }.items() if v and k not in {'_response_type', '_json_response'} }
+        return { k : v for k,v in { **d, **pp_entity_props }.items() if v != None and k not in {'_response_type', '_json_response'} }
+
+    @classmethod
+    def _build_args(cls, json_data: dict, entity_types: Dict[str, T] = dict(), array_types: Dict[str, Iterable[T]] = dict()) -> dict:
+        """Helper class method to build arguments for serialization on child classes
+        
+        Arguments:
+            json_data {dict} -- paypal json response data
+        
+        Keyword Arguments:
+            entity_types {Dict[str, T]} -- Serializable child class single attributes (default: {dict()})
+            array_types {Dict[str, Iterable[T]]} -- Serializable child class array attributes (default: {dict()})
+        
+        Returns:
+            dict -- An array with the arguments for serialization.
+        """
+        return {
+            # Primitives
+            **json_data,
+            # Serialized types
+            **{ k : entity_types[k].serialize_from_json(v) for k,v in json_data.items() if k in entity_types and v }
+            # Serilized type arrays
+            **{ k : [array_types[k].serialize_from_json(v) for v in json_data[k]] for k in json_data.keys() if k in array_types }
+        }
 
     @classmethod
     @abstractmethod
@@ -248,6 +285,16 @@ class PaypalPage(Generic[T]):
         """Factory method for unsuccessful requests
         """
         return cls(True, api_response, total_items, total_pages, elements, links)
+
+    @classmethod
+    def full_parse_success(cls, api_response, entity_class: Type[T], response_entity_key: str, response_type: ResponseType = ResponseType.MINIMAL) -> 'PaypalPage':
+        """Fully parses a successful api response to return a page
+        """
+        j_data = api_response.json()
+        links = [ ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in j_data.get('links', []) ]
+        elements = [ entity_class.serialize_from_json(x, response_type) for x in j_data.get(response_entity_key, [])]
+        return cls(False, api_response, j_data.get('total_items'), j_data.get('total_pages'), elements, links)
+
 
 class Money(PayPalEntity):
     """Amount object definition for paypal request/responses
@@ -766,3 +813,78 @@ class PaymentInstruction(PayPalEntity):
     @classmethod
     def create(cls, platform_fees: List[PlatformFee], disbursement_mode: DisbursementMode = DisbursementMode.INSTANT):
         return cls(platform_fees, disbursement_mode.name)
+
+class PaymentMethod(PayPalEntity):
+    """App context payment method obj representation
+    """
+
+    def __init__(self, payer_selected: str, payee_preferred: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.payer_selected = payer_selected
+        self.payee_preferred = payee_preferred
+
+    @property
+    def payee_preferred_enum(self) -> AppCtxPayeePreference:
+        try:
+            return AppCtxPayeePreference[self.payee_preferred] if self.payee_preferred else None
+        except:
+            return None
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        return cls(json_data['payer_selected'], json_data['payee_preferred'], json_response= json_data, response_type = response_type)
+    
+    @classmethod
+    def create(cls,  payee_preferred: AppCtxPayeePreference, payer_selected: str = 'PAYPAL') -> 'PaymentMethod':
+        return cls(payer_selected, payee_preferred.name)
+
+class ApplicationContext(PayPalEntity):
+    """Paypal application context object representation
+    """
+
+    _ENTITY_TYPES = { 'payment_method': PaymentMethod }
+
+    def __init__(
+        self, brand_name: str = None, locale: str = None, 
+        landing_page: str = None, shipping_preference: str = None, 
+        user_action: str = None, payment_method: PaymentMethod = None, 
+        return_url: str = None, cancel_url: str = None, **kwargs
+    ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.brand_name = brand_name
+        self.locale = locale
+        self.landing_page = landing_page
+        self.shipping_preference = shipping_preference
+        self.user_action = user_action
+        self.payment_method = payment_method
+        self.return_url  = return_url
+        self.cancel_url = cancel_url
+    
+    @property
+    def landing_page_enum(self) -> AppCtxLandingPage:
+        try:
+            return AppCtxLandingPage[self.landing_page] if self.landing_page else None
+        except:
+            return None
+
+    @property
+    def shipping_preference_enum(self) -> AppCtxShippingPreference:
+        try:
+            return AppCtxShippingPreference[self.shipping_preference] if self.shipping_preference else None
+        except:
+            return None
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
+    
+    @classmethod
+    def create(cls, brand_name: str = None, locale: str = None, return_url: str = None, cancel_url: str = None, 
+        payment_method: PaymentMethod = None, landing_page: AppCtxLandingPage = AppCtxLandingPage.NO_PREFERENCE,
+        shipping_preference: AppCtxShippingPreference = AppCtxShippingPreference.GET_FROM_FILE, 
+        user_action: str = None) -> 'ApplicationContext':
+        return cls(
+            brand_name, locale, landing_page.name, shipping_preference.name, 
+            user_action, payment_method, return_url, cancel_url
+        )

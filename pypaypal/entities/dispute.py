@@ -276,12 +276,5 @@ class Dispute(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        
-        args = {
-            # Primitives
-            **json_data,
-            # Serialized types
-            **{ k : cls._ENTITY_TYPES[k].serialize_from_json(v) for k,v in json_data.items() if k in cls._ENTITY_TYPES and v }
-            # Serilized type arrays
-            **{ k : [cls._ARRAY_TYPES[k].serialize_from_json(v) for v in json_data[k]] for k in json_data.keys() if k in cls._ARRAY_TYPES }
-        }
-        return cls( **args, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)

@@ -16,9 +16,13 @@ from pypaypal.entities.base import (
     ActionLink,
     ResponseType,
     PayPalEntity,
+    PaymentMethod,
     PaypalPhoneDetail,
+    AppCtxLandingPage,
+    ApplicationContext,
     PaymentInstruction,
-    PaypalPortableAddress
+    PaypalPortableAddress,
+    AppCtxShippingPreference
 )
 
 from pypaypal.entities.payments.captures import Capture
@@ -43,24 +47,6 @@ class ItemCategory(Enum):
     DIGITAL_GOODS = 1
     PHYSICAL_GOODS = 2
 
-class LandingPage(Enum):
-    LOGIN = 1
-    BILLING = 2
-    NO_PREFERENCE = 3
-
-class ShippingPreference(Enum):
-    GET_FROM_FILE = 1
-    NO_SHIPPING = 2
-    SET_PROVIDED_ADDRESS = 3
-
-class UserAction(Enum):
-    CONTINUE = 1
-    PAY_NOW = 2
-
-class PayeePreference(Enum):
-    UNRESTRICTED = 1
-    IMMEDIATE_PAYMENT_REQUIRED = 2
-
 class OrderStatus(Enum):
     CREATED = 1
     SAVED = 2
@@ -68,7 +54,11 @@ class OrderStatus(Enum):
     VOIDED = 4
     COMPLETED = 5
 
-class CardType(Enum):    
+class OrderUserAction(Enum):
+    CONTINUE = 1
+    PAY_NOW = 2
+
+class CardType(Enum): 
     VISA = 1 # Visa card.
     MASTERCARD = 2  # MasterCard card.
     DISCOVER = 3 # Discover card.
@@ -406,64 +396,30 @@ class PurchaseUnitRequest(PayPalEntity):
             invoice_id, pur_id, soft_descriptor, items, shipping
         )
 
-class PaymentMethod(PayPalEntity):
-    """Order payment method obj representation
+class OrderApplicationContext(ApplicationContext):
+    """Paypal Order app context object representation
     """
-
-    def __init__(self, payer_selected: str, payee_preferred: str, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.payer_selected = payer_selected
-        self.payee_preferred = payee_preferred
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    @property
+    def order_user_action(self) -> OrderUserAction:
+        try:
+            return OrderUserAction[self.user_action] if self.user_action else None
+        except:
+            return None
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(json_data['payer_selected'], json_data['payee_preferred'], json_response= json_data, response_type = response_type)
-    
-    @classmethod
-    def create(cls,  payee_preferred: PayeePreference, payer_selected: str = 'PAYPAL') -> 'PaymentMethod':
-        return cls(payer_selected, payee_preferred.name)
-
-class OrderApplicationContext(PayPalEntity):
-    """Paypal Order object representation
-    """
-
-    def __init__(
-        self, brand_name: str, locale: str, landing_page: str,
-        shipping_preference: str, user_action: str, 
-        payment_method: PaymentMethod, return_url: str, 
-        cancel_url: str, **kwargs
-    ):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.brand_name = brand_name
-        self.locale = locale
-        self.landing_page = landing_page
-        self.shipping_preference = shipping_preference
-        self.user_action = user_action
-        self.payment_method = payment_method
-        self.return_url  = return_url
-        self.cancel_url = cancel_url
-    
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        payment_method = None
-
-        if 'payment_method' in json_data.keys():
-            payment_method = PaymentMethod.serialize_from_json(json_data['payment_method'], response_type)
-        
-        return cls(
-            json_data.get('brand_name'), json_data.get('locale'), json_data.get('landing_page'), 
-            json_data.get('shipping_preference'), json_data.get('user_action'), payment_method, 
-            json_data.get('return_url'), json_data.get('cancel_url'),
-            json_response= json_data, response_type = response_type
-        )
-    
+        return super().serialize_from_json(json_data, response_type)
+            
     @classmethod
     def create(cls, brand_name: str = None, locale: str = None, return_url: str = None, cancel_url: str = None, 
-        payment_method: PaymentMethod = None, landing_page: LandingPage = LandingPage.NO_PREFERENCE,
-        shipping_preference: ShippingPreference = ShippingPreference.GET_FROM_FILE, 
-        user_action: UserAction = UserAction.CONTINUE ) -> 'OrderApplicationContext':
-        return cls(
-            brand_name, locale, landing_page.name, shipping_preference.name, 
+        payment_method: PaymentMethod = None, landing_page: AppCtxLandingPage = AppCtxLandingPage.NO_PREFERENCE,
+        shipping_preference: AppCtxShippingPreference = AppCtxShippingPreference.GET_FROM_FILE, 
+        user_action: OrderUserAction = OrderUserAction.CONTINUE) -> 'ApplicationContext':
+        return super().create(
+            brand_name, locale, landing_page.name, shipping_preference.name,
             user_action.name, payment_method, return_url, cancel_url
         )
 
