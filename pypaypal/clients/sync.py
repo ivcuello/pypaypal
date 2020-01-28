@@ -1,7 +1,9 @@
 """
     Sync (Transaction) resource clients for the paypal resource group.
 
-    Resource docs & Reference: 
+    Resource docs & Reference: https://developer.paypal.com/docs/api/sync/v1/
+
+    It seems that paypal renamed this endpoint in the docs to: https://developer.paypal.com/docs/api/transaction-search/v1/
 """
 
 import json
