@@ -22,6 +22,7 @@ P = TypeVar('P', bound = 'PaypalPortableAddress')
 class ResponseType(Enum):
     MINIMAL = 1
     REPRESENTATION = 2
+    UNDEFINED = 3
 
     def is_minimal(self) -> bool:
         """checks if this response type is minimal
@@ -31,13 +32,21 @@ class ResponseType(Enum):
         """
         return self == ResponseType.MINIMAL
 
+    def is_representation(self) -> bool:
+        """checks if this response type is representation
+        
+        Returns:
+            bool -- True if REPRESENTATION False otherwise
+        """
+        return self == ResponseType.REPRESENTATION
+
     def as_header_value(self) -> str:
         """Gets the header value for this return type. E.g: Prefer: return={type} 
         
         Returns:
             str -- the header value
         """
-        return 'return=representation' if self == ResponseType.REPRESENTATION else 'return=minimal'
+        return 'return=representation' if self.is_representation() else 'return=minimal'
 
 class RequestMethod(Enum):
     """Enumeration for request methods    
@@ -338,7 +347,7 @@ class PaypalMessage(PayPalEntity):
     @property
     def time_posted(self) -> datetime:
         try:
-            return dateutil.parser.parse(self._create_time) if self._create_time else None
+            return dateutil.parser.parse(self._time_posted) if self._time_posted else None
         except:
             return None
 
