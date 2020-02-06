@@ -375,11 +375,11 @@ class SimulateEventClient(ClientBase):
         if body['url'] != None: 
             body['url'] = url
         if body['webhook_id'] != None: 
-            body['webhooks_id'] = webhooks_id
+            body['webhooks_id'] = webhook_id
         if body['resource_version'] != None: 
             body['resource_version'] = resource_version
 
-        api_response = self._session.post(parse_url(self._base_url, event_id), json.dumps(body))
+        api_response = self._session.post(self._base_url), json.dumps(body))
 
         if api_response.status_code // 100 != 2:
             return PaypalApiResponse.error(api_response)
