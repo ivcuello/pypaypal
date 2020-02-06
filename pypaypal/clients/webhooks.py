@@ -379,7 +379,7 @@ class SimulateEventClient(ClientBase):
         if body['resource_version'] != None: 
             body['resource_version'] = resource_version
 
-        api_response = self._session.post(self._base_url), json.dumps(body))
+        api_response = self._session.post(self._base_url, json.dumps(body))
 
         if api_response.status_code // 100 != 2:
             return PaypalApiResponse.error(api_response)
