@@ -136,7 +136,7 @@ class SyncClient(ClientBase):
 
         api_response = self._session.get(self._base_url, parameters)
 
-        if api_response // 100 != 2:
+        if api_response.status_code // 100 != 2:
             return PaypalApiResponse.error(api_response)
 
         return PaypalApiResponse.success(api_response, TransactionResponse.serialize_from_json(api_response.json()))

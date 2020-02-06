@@ -21,6 +21,10 @@ class AnchorType(Enum):
     ACCOUNT = 1
     APPLICATION = 2
 
+class SignatureVerificationStatus(Enum):
+    SUCCESS = 1
+    FAILURE = 2
+
 class ResourceVersion(PayPalEntity):
     """Resource version object representation
     """
@@ -140,6 +144,7 @@ class Resource(PayPalEntity):
         self.resource_id = resource_id
         self._update_time = self._json_response.get('update_time', kwargs.get('update_time'))
         self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
+        self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
 
     def to_dict(self) -> dict:
         ret = super().to_dict()
@@ -170,16 +175,93 @@ class Resource(PayPalEntity):
         args = super()._build_args(json_data, cls._ENTITY_TYPES)
         return cls(**args, json_response = json_data, response_type = response_type)
 
-# TODO: Finish the WebhookEvent & WebhookSignature classes
-
 class WebhookEvent(PayPalEntity):
     """WebhookEvent obj representation
     """
-    pass
+    
+    _ENTITY_TYPES = { 'resource': Resource }
+
+    def __init__(
+            self, event_id: str = None, resource_type: str = None, 
+            event_version: str = None, event_type: str = None, summary: str = None, 
+            resource_version: str = None, resource: Resource = None, **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.summary = summary
+        self.event_id = event_id
+        self.resource = resource
+        self.event_type = event_type
+        self.resource_type = resource_type
+        self.event_version = event_version
+        self.resource_version = resource_version
+        self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
+        self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
+
+    def to_dict(self) -> dict:
+        ret = super().to_dict()
+        if ret['event_id']:
+            ret['id'] = ret.pop('event_id')
+        return ret
+
+    @property
+    def create_time(self) -> datetime:
+        try:
+            return dateutil.parser.parse(self._create_time) if self._create_time else None
+        except:
+            return None
+
+    @classmethod
+    def create(cls, event_id: str = None, resource_type: str = None,
+            event_version: str = None, event_type: str = None, summary: str = None,
+            resource_version: str = None, resource: Resource = None) -> 'WebhookEvent':
+        return cls(
+            summary = summary, event_id = event_id, event_type = event_type,
+            resource_type = resource_type, event_version = event_version,
+            resource = resource, resource_version = resource_version
+        )
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response = json_data, response_type = response_type)
 
 class WebhookSignature(PayPalEntity):
     """Webhook cert Signature obj representation
     """
-    pass
+
+    _ENTITY_TYPES = { 'webhook_event': WebhookEvent }
+
+    def __init__(
+            self, auth_algo: str = None, cert_url: str = None, 
+            transmission_id: str = None, transmission_sig: str = None, 
+            transmission_time: str = None, webhook_id: str = None, 
+            webhook_event: WebhookEvent = None, **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.cert_url = cert_url
+        self.auth_algo = auth_algo
+        self.webhook_id = webhook_id
+        self.webhook_event = webhook_event
+        self.transmission_id = transmission_id
+        self.transmission_sig = transmission_sig
+        self.transmission_time = transmission_time
+    
+    @classmethod
+    def create(
+            cls, auth_algo: str, cert_url: str, transmission_id: str, 
+            transmission_sig: str, transmission_time: str, webhook_id: str, 
+            webhook_event: WebhookEvent
+        ) -> 'WebhookSignature':
+        return cls(
+                auth_algo = auth_algo, cert_url = cert_url, 
+                transmission_id = transmission_id, transmission_sig = transmission_sig, 
+                transmission_time = transmission_time, webhook_id = webhook_id, 
+                webhook_event = webhook_event 
+            )
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response = json_data, response_type = response_type)
 
 

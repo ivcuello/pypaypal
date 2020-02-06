@@ -2,6 +2,8 @@
     Module containing the client errors and exceptions
 """
 
+import copy
+
 from typing import Type, TypeVar, List
 
 T = TypeVar('T', bound = 'PayPalErrorDetail')
@@ -15,6 +17,10 @@ class PayPalErrorDetail:
         self.message = message
         self.information_link = info_link
         self._json_response = json_response
+
+    @property
+    def as_json_dict(self) -> dict:
+        return self._json_response
 
     @property
     def debug_id(self) -> str:

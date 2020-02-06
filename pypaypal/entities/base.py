@@ -128,9 +128,22 @@ class PayPalEntity(ABC):
         }
 
     @classmethod
+    def instance_from_dict(cls: Type[T], dictionary: dict) -> T:
+        """Factory method meant to create an instance from a dictionary
+        
+        Arguments:
+            cls {Type[T]} -- class
+            dictionary {dict} -- dictionary with all the needed args
+        
+        Returns:
+            T -- A child class instance. 
+        """
+        return cls.serialize_from_json(dictionary, response_type = ResponseType.UNDEFINED)
+
+    @classmethod
     @abstractmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        """Serializes a json to a subclass instance
+        """Serializes a loaded json (json.loads(str)) to a subclass instance
         
         Arguments:
             cls {Type[T]} -- the class
@@ -224,13 +237,13 @@ class PaypalApiBulkResponse(Generic[T]):
         return PayPalErrorDetail.serialize_from_json(data) if self.has_errors and data else None
 
     @classmethod
-    def success(cls, api_response, parsed_response: Type[T] = None) -> 'PaypalApiBulkResponse':
+    def success(cls, api_response, parsed_response: List[Type[T]] = None) -> 'PaypalApiBulkResponse':
         """Factory method for successful requests
         """
         return cls(False, api_response, parsed_response)
     
     @classmethod
-    def error(cls, api_response, parsed_response: Type[T] = None) -> 'PaypalApiBulkResponse':
+    def error(cls, api_response, parsed_response: List[Type[T]] = None) -> 'PaypalApiBulkResponse':
         """Factory method for unsuccessful requests
         """
         return cls(True, api_response, parsed_response)
@@ -241,10 +254,19 @@ class PaypalPage(Generic[T]):
     def __init__(self, error: bool, api_response, total_items: int, total_pages: int, elements: List[T], links: List[ActionLink]):
         self.errors = error
         self.links = links
-        self.elements = elements
+        self.elements = elements or []
         self.total_items = total_items
         self.total_pages = total_pages
         self._raw_response = api_response
+
+    @property
+    def element_count(self) -> int:
+        """Number of elements. It can be less than the page size
+        
+        Returns:
+            int -- Number of elements
+        """
+        return len(self.elements)
 
     @property
     def error_detail(self) -> PayPalErrorDetail:
@@ -483,7 +505,7 @@ class PaypalPortableAddress(PayPalEntity):
         return self._adm_area_for_index(4)
 
     def to_dict(self) -> dict:
-        d = { 
+        d = {
             'postal_code': self.postal_code, 'country_code': self.country_code,
             'admin_area_1': self.admin_area_1, 'admin_area_2': self.admin_area_2, 
             'admin_area_3': self.admin_area_3, 'admin_area_4': self.admin_area_4,
