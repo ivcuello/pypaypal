@@ -41,8 +41,8 @@ class IdentityError(Exception):
     def __init__(self, response):
         super().__init__('Identity error occoured')
         self.response = response
-        self.error = response.get('error')
-        self.error_description = response.get('error_description')
+        self.error = response.json().get('error')
+        self.error_description = response.json().get('error_description')
 
 class ExpiredSessionError(Exception):
     """

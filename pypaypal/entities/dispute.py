@@ -8,14 +8,14 @@ from typing import Type, List
 
 import dateutil.parser
 
-from pypaypal.entities.base import ( 
+from pypaypal.entities.base import (
     T, 
     Money, 
     ActionLink, 
     PayPalEntity, 
     ResponseType, 
     PaypalMessage, 
-    PaypalTransaction, 
+    PaypalMerchant, 
     PatchUpdateRequest 
 )
 
@@ -103,6 +103,80 @@ class DisputeLifeCycleStage(Enum):
     # If the merchant does not appeal within the appeal period, the case returns to a resolved status in pre-arbitration stage.
     ARBITRATION = 4
 
+class Buyer(PayPalEntity):
+    """Dispute buyer obj representation
+    """
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.name = name
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        return cls(**json_data, json_response = json_data, response_type = response_type)
+
+class ItemInfo(PayPalEntity):
+    """Dispute item info obj representation
+    """
+
+    _ENTITY_TYPES = { 'dispute_amount': Money }
+
+    def __init__(
+            self, item_id: str = None, item_description: str = None, 
+            partner_transaction_id: str = None, reason: str = None, 
+            dispute_amount: Money = None, notes: str = None, **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.notes = notes
+        self.reason = reason
+        self.item_id = item_id
+        self.dispute_amount = dispute_amount
+        self.item_description  = item_description
+        self.partner_transaction_id = partner_transaction_id
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response = json_data, response_type = response_type)
+
+class DisputeTransaction(PayPalEntity):
+    """Transaction object representation
+    """
+    
+    _ARRAY_TYPES = { 'messages': PaypalMessage, 'items': ItemInfo }
+    _ENTITY_TYPES = { 'buyer': Buyer, 'gross_amount': Money, 'seller': PaypalMerchant }
+
+    def __init__(
+            self, buyer_transaction_id: str = None, seller_transaction_id: str = None, 
+            transaction_status: str = None, buyer: Buyer = None, gross_amount: Money = None,
+            seller: PaypalMerchant = None, messages: List[PaypalMessage] = [],
+            invoice_number: str = None, custom: str = None, items: List[ItemInfo] = [], **kwargs
+        ):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.items = items
+        self.buyer  = buyer
+        self.seller = seller
+        self.custom = custom
+        self.messages = messages
+        self.gross_amount = gross_amount
+        self.invoice_number = invoice_number
+        self.transaction_status = transaction_status
+        self.buyer_transaction_id = buyer_transaction_id
+        self.seller_transaction_id = seller_transaction_id
+        self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
+    
+    @property
+    def create_time(self) -> datetime:
+        try:
+            return dateutil.parser.parse(self._create_time) if self._create_time else None
+        except:
+            return None
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
+ 
 class DisputeUpdateRequest(PatchUpdateRequest):
     """Update request for PATCH dispute updates
     """
@@ -127,48 +201,64 @@ class DisputeTracker(PayPalEntity):
             json_response= json_data, response_type = response_type
         )
 
+class RefundId(PayPalEntity):
+    """Refund id obj representation
+    """
+    def __init__(self, refund_id: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.refund_id = refund_id
+    
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        return cls(json_data.get('refund_id'), json_response = json_data, response_type = response_type)
+
 class DisputeEvidenceInfo(PayPalEntity):
     """Dispute evidence info
     """
-    def __init__(self, trackers: List[DisputeTracker], refund_ids: List[str]=[], **kwargs):
+
+    _ARRAY_TYPES = { 'trackers': DisputeTracker, 'refund_ids': RefundId }
+
+    def __init__(self, trackers: List[DisputeTracker] = [], refund_ids: List[RefundId]=[], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.tracking_info = trackers
-        self.refunds_ids = [ {'refund_id': x} for x in refund_ids ]
-
-    def to_dict(self) -> dict:
-        d = super().to_dict()
-        
-        if 'tracking_info' in d.keys():
-            d['tracking_info'] = [ e.to_dict() for e in self.tracking_info ]
-
-        return d
+        self.refunds_ids = refund_ids
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        trackers = [DisputeTracker.serialize_from_json(x) for x in json_data['evidence_info']['tracking_info']]        
-    
-        return cls(
-            trackers, json_data['refund_ids'], json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, dict(), cls._ARRAY_TYPES)    
+        return cls(**args, json_response= json_data, response_type = response_type)
+
+class Document(PayPalEntity):
+    """Dispute document obj representation
+    """
+
+    def __init__(self, name: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.name = name
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        return cls(**json_data, json_response = json_data, response_type = response_type)
 
 class DisputeEvidence(PayPalEntity):
     """Dispute evidence for requests
     """
+
+    _ENTITY_TYPES = { 'document': Document, 'evidence_info': DisputeEvidenceInfo }
+
     def __init__(
-        self, *, evidence_type: str = None, notes: str = None, 
+        self, evidence_type: str = None, notes: str = None, document: Document = None,
         item_id: str = None, evidence_info: DisputeEvidenceInfo = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.notes = notes
         self.item_id = item_id
+        self.document = document
         self.evidence_type = evidence_type
         self.evidence_info = evidence_info
-        self.document = {'name' : kwargs['document_name']} if 'document_name' in kwargs.keys() else None
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        args = { **json_data }
-        if 'evidence_info' in json_data.keys():
-            args['evidence_info'] = DisputeEvidenceInfo.serialize_from_json(args['evidence_info'])
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
         return cls(**args, json_response= json_data, response_type = response_type)
 
 class DisputeOutcome(PayPalEntity):
@@ -191,13 +281,13 @@ class Dispute(PayPalEntity):
     """Dispute object representation
     """
 
-    _ARRAY_TYPES = { 'messages': PaypalMessage, 'disputed_transactions': PaypalTransaction }
+    _ARRAY_TYPES = { 'messages': PaypalMessage, 'disputed_transactions': DisputeTransaction }
     _ENTITY_TYPES = { 'offer': Money, 'dispute_amount': Money, 'dispute_outcome': DisputeOutcome }
 
     def __init__(
-        self, *, dispute_id: str = None, reason: str = None, status: str = None, amount: Money = None, 
+        self, dispute_id: str = None, reason: str = None, status: str = None, amount: Money = None, 
         offer: Money = None, dispute_outcome: DisputeOutcome = None, messages: List[PaypalMessage] = [], 
-        disputed_transactions: List[PaypalTransaction] = [], dispute_channel: str = None, 
+        disputed_transactions: List[DisputeTransaction] = [], dispute_channel: str = None, 
         dispute_state: str = None, dispute_life_cycle_stage: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.offer = offer

@@ -73,7 +73,7 @@ class ExecutionType(Enum):
 class ProcessingState(PayPalEntity):
     """Referenced payout item processing state obj definition
     """
-    def __init__(self, *, status: str = None, reason: str = None, **kwargs):
+    def __init__(self, status: str = None, reason: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.status = status
         self.reason = reason
@@ -106,7 +106,7 @@ class ProcessingState(PayPalEntity):
 class PayoutDirective(PayPalEntity):
     """Payout Directive obj representation
     """
-    def __init__(self, *, financial_instrument_id: str, **kwargs):
+    def __init__(self, financial_instrument_id: str, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.financial_instrument_id = financial_instrument_id
     
@@ -126,7 +126,7 @@ class ReferencedPayoutsItem(PayPalEntity):
     _ENTITY_TYPES = { 'processing_state': ProcessingState, 'payout_amount': Money }
 
     def __init__(
-            self, *, item_id: str = None, processing_state: str = None, 
+            self, item_id: str = None, processing_state: str = None, 
             reference_id: str = None, reference_type: str = None, payout_transaction_id: str = None, 
             disbursement_transaction_id: str = None, external_merchant_id: str = None, 
             payee_email: str = None, payout_amount: Money = None, payout_destination: str = None, 
@@ -191,7 +191,7 @@ class ReferencedPayoutCall(PayPalEntity):
     """ Class to wrap reference payout requests / responses
     """
     def __init__(
-            self, *, payout_directive: PayoutDirective = None, referenced_payouts: List[ReferencedPayoutsItem] = [], **kwargs
+            self, payout_directive: PayoutDirective = None, referenced_payouts: List[ReferencedPayoutsItem] = [], **kwargs
         ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.payout_directive = payout_directive
@@ -228,7 +228,7 @@ class ReferencedPayoutResponse(ReferencedPayoutCall):
     """Class to wrap reference payout requests    
     """
     def __init__(
-            self, *, payout_directive: PayoutDirective,
+            self, payout_directive: PayoutDirective,
             referenced_payouts: List[ReferencedPayoutsItem], **kwargs
         ):
         super().__init__(payout_directive = payout_directive, referenced_payouts = referenced_payouts, **kwargs)

@@ -315,7 +315,7 @@ class TransactionInfo(PayPalEntity):
     }
 
     def __init__(
-        self, *, paypal_account_id: str = None, transaction_id: str = None,
+        self, paypal_account_id: str = None, transaction_id: str = None,
         paypal_reference_id: str = None, paypal_reference_id_type: str = None, 
         transaction_event_code: str = None, transaction_amount: Money = None, fee_amount: Money = None, 
         discount_amount: Money = None, insurance_amount: Money = None, sales_tax_amount: Money = None, 
@@ -428,7 +428,7 @@ class PayerInfo(PayPalEntity):
     _PAYPAL_ENTITY_TYPES = { 'payer_name': PaypalName, 'address': PaypalPortableAddress, 'phone_number': PaypalPhoneDetail }
 
     def __init__(
-        self, *, account_id: str = None, email_address: str = None, 
+        self, account_id: str = None, email_address: str = None, 
         phone_number: PaypalPhoneDetail = None, address_status: str = None, 
         payer_status: str = None, payer_name: PaypalName = None, country_code: str = None,
         address: PaypalPortableAddress = None, **kwargs
@@ -479,7 +479,7 @@ class ShippingInfo(PayPalEntity):
     _ADDRESS_TYPES = {'address', 'secondary_shipping_address'}
 
     def __init__(
-        self, *, name: str = None, method: str = None, 
+        self, name: str = None, method: str = None, 
         address: PaypalPortableAddress = None, 
         secondary_shipping_address: PaypalPortableAddress = None,
         **kwargs
@@ -511,7 +511,7 @@ class CheckoutOption(PaypalName):
     """Checkout option object representation.
     """
 
-    def __init__(self, *, checkout_option_name: str, checkout_option_value: str, **kwargs):
+    def __init__(self, checkout_option_name: str, checkout_option_value: str, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.checkout_option_name = checkout_option_name
         self.checkout_option_value = checkout_option_value
@@ -536,7 +536,7 @@ class ItemDetail(PayPalEntity):
     }
 
     def __init__(
-        self, *, item_code: str = None, item_name: str = None, item_description: str = None, 
+        self, item_code: str = None, item_name: str = None, item_description: str = None, 
         item_options: str = None, item_quantity: str = None, item_unit_price: Money = None, 
         item_amount: Money = None, discount_amount: Money = None, adjustment_amount: Money = None, 
         gift_wrap_amount: Money = None, tax_percentage: str = None, tax_amounts: List[TaxAmount] = [], 
@@ -598,7 +598,7 @@ class StoreInfo(PayPalEntity):
     """Store info object representation.
     """
 
-    def __init__(self, *, store_id: str = None, terminal_id: str = None, **kwargs):
+    def __init__(self, store_id: str = None, terminal_id: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.store_id = store_id
         self.terminal_id = terminal_id
@@ -612,7 +612,7 @@ class AuctionInfo(PayPalEntity):
     """
 
     def __init__(
-        self, *, auction_site: str = None, auction_item_site: str = None, 
+        self, auction_site: str = None, auction_item_site: str = None, 
         auction_buyer_id: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.auction_site = auction_site
@@ -636,8 +636,8 @@ class IncentiveDetail(PayPalEntity):
     """
 
     def __init__(
-        self, *, incentive_type: str = None, incentive_code: str = None, 
-        incentive_amount: Money, incentive_program_code: str, **kwargs):
+        self, incentive_type: str = None, incentive_code: str = None, 
+        incentive_amount: Money = None, incentive_program_code: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.incentive_type = incentive_type
         self.incentive_code  = incentive_code 
@@ -676,7 +676,7 @@ class TransactionDetails(PayPalEntity):
     }
 
     def __init__(
-        self, *, transaction_info: TransactionInfo, 
+        self, transaction_info: TransactionInfo, 
         payer_info: PayerInfo, shipping_info: ShippingInfo, 
         cart_info: CartInfo, store_info: StoreInfo, 
         auction_info: AuctionInfo, **kwargs
@@ -698,7 +698,7 @@ class TransactionResponse(PayPalEntity):
     """Transaction query response with the main info and details    
     """
 
-    def __init__(self, *, account_number: str = None, 
+    def __init__(self, account_number: str = None, 
     transaction_details: List[TransactionDetails] = [], **kwargs):
         self.account_number = account_number
         self.transaction_details = transaction_details        

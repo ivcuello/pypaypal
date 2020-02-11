@@ -8,7 +8,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from email.mime.base import MIMEBase
-from typing import Type, TypeVar, List, Generic, Dict
+from typing import Type, TypeVar, List, Generic, Dict, Iterable
 
 import dateutil.parser
 
@@ -122,7 +122,7 @@ class PayPalEntity(ABC):
             # Primitives
             **json_data,
             # Serialized types
-            **{ k : entity_types[k].serialize_from_json(v) for k,v in json_data.items() if k in entity_types and v }
+            **{ k : entity_types[k].serialize_from_json(v) for k,v in json_data.items() if k in entity_types and v },
             # Serilized type arrays
             **{ k : [array_types[k].serialize_from_json(v) for v in json_data[k]] for k in json_data.keys() if k in array_types }
         }
@@ -360,12 +360,18 @@ class PaypalMessage(PayPalEntity):
     """Message object representation
     """
     
-    def __init__(self, posted_by: str, time_posted: str, content: str, **kwargs):
+    def __init__(self, posted_by: str = None, time_posted: str = None, content: str = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.content = content
         self.posted_by = posted_by
         self._time_posted = time_posted
     
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        if '_time_posted' in d.keys():
+            d['time_posted'] = d.pop('_time_posted')
+        return d
+
     @property
     def time_posted(self) -> datetime:
         try:
@@ -375,43 +381,7 @@ class PaypalMessage(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-            json_data['posted_by'], json_data['time_posted'], json_data['content'],
-            json_response= json_data, response_type = response_type
-        )
-
-class PaypalTransaction(PayPalEntity):
-    """Transaction object representation
-    """
-    
-    def __init__(self, seller_transaction_id: str, transaction_status: str, buyer: str, gross_amount: Money, seller: PaypalMerchant, messages: List[PaypalMessage], **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.buyer = buyer
-        self.seller = seller
-        self.messages = messages
-        self.gross_amount = gross_amount
-        self.transaction_status = transaction_status
-        self.seller_transaction_id = seller_transaction_id
-        self._create_time = self._json_response.get('create_time', kwargs.get('create_time'))
-    
-    @property
-    def create_time(self) -> datetime:
-        try:
-            return dateutil.parser.parse(self._create_time) if self._create_time else None
-        except:
-            return None
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        seller = PaypalMerchant.serialize_from_json(json_data['seller'], response_type)    
-        gross_amount = Money.serialize_from_json(json_data['dispute_amount'], response_type)
-        messages = [PaypalMessage.serialize_from_json(x, response_type) for x in json_data['messages']]
-        
-        return cls(
-            json_data['seller_transaction_id'], json_data['transaction_status'], 
-            json_data['buyer'], gross_amount, seller, messages,
-            json_response= json_data, response_type = response_type
-        )
+        return cls(**json_data, json_response= json_data, response_type = response_type)
 
 class AddressLine:
     """Address line wrapper

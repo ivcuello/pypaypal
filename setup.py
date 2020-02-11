@@ -21,7 +21,7 @@ if REQUIRED_PYTHON_VERSION > CURRENT_PYTHON_VERSION:
 
 setup(
     name='pypaypal',
-    version='0.8.8',
+    version='0.8.15',
     python_requires='>=3.6',
     author='ivcuello',
     author_email='ivcuello@gmail.com',
