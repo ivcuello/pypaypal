@@ -122,8 +122,8 @@ class PayoutError(PayPalErrorDetail):
     """Payout error object representation
     """
     
-    def __init__(self, json_response: dict, name: str, message: str, info_link: str):
-        super().__init__(json_response, name, message, info_link)
+    def __init__(self, name: str, message: str, info_link: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), name, message, info_link)
         self._payout_error_details = self._json_response.get('payout_error_details')
     
     @property
@@ -135,7 +135,10 @@ class PayoutError(PayPalErrorDetail):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict) -> T:
-        return cls(json_data, json_data.get('name'), json_data.get('message'), json_data.get('information_link'))
+        return cls(
+            json_data.get('name'), json_data.get('message'), json_data.get('information_link'), 
+            json_response = json_data
+        )
 
 class PayoutHeader(PayPalEntity):
     """Payout header object representation

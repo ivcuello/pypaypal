@@ -100,7 +100,7 @@ class TypedPhone(PayPalEntity):
             phone_number = PaypalPhoneDetail.serialize_from_json(json_data['phone_number'], response_type)
         
         return cls(
-            json_data['phone_type'], phone_number, json_response= json_data, response_type = response_type
+            json_data.get('phone_type'), phone_number, json_response= json_data, response_type = response_type
         )
 
     @classmethod
@@ -118,7 +118,7 @@ class TaxInfo(PayPalEntity):
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
         return cls(
-            json_data['tax_id'], json_data['tax_id_type'], json_response= json_data, response_type = response_type
+            json_data.get('tax_id'), json_data.get('tax_id_type'), json_response= json_data, response_type = response_type
         )
 
     @classmethod
@@ -169,7 +169,7 @@ class Payer(PayPalEntity):
             address = PaypalPortableAddress.serialize_from_json(json_data['address'], response_type)
 
         return cls(
-            json_data['payer_id'], name, json_data['email_address'], phone, 
+            json_data.get('payer_id'), name, json_data.get('email_address'), phone, 
             json_data.get('birth_date'), tax_info, address, json_response= json_data, 
             response_type = response_type
         )
@@ -287,7 +287,7 @@ class Name(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(json_data['full_name'], json_response= json_data, response_type = response_type)
+        return cls(json_data.get('full_name'), json_response= json_data, response_type = response_type)
 
 class ShippingDetail(PayPalEntity):
     """Shipping detail obj representation
