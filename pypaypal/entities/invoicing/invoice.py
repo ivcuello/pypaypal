@@ -223,10 +223,10 @@ class InvoiceDetail(PayPalEntity):
     ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.metadata = metadata
-        self.attachments = attachments
         self.payment_term = payment_term
         self.currency_code = currency_code
         self.invoice_number = invoice_number
+        self.attachments = attachments or []
         self.note = self._json_response.get('note', kwargs.get('note'))
         self.memo = self._json_response.get('memo', kwargs.get('memo'))
         self.reference = self._json_response.get('reference', kwargs.get('reference'))        
@@ -271,7 +271,7 @@ class InvoiceDetail(PayPalEntity):
     ):
         return cls(
             currency_code, invoice_number, metadata, payment_term, 
-            attachments, note = note, memo = memo, reference = reference, 
+            attachments or [], note = note, memo = memo, reference = reference, 
             invoice_date = invoice_date, terms_and_conditions = terms_and_conditions
         )
 

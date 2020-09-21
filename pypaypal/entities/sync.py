@@ -556,14 +556,14 @@ class ItemDetail(PayPalEntity):
         self.adjustment_amount = adjustment_amount
         self.gift_wrap_amount = gift_wrap_amount
         self.tax_percentage = tax_percentage
-        self.tax_amounts = tax_amounts
+        self.tax_amounts = tax_amounts or []
         self.basic_shipping_amount = basic_shipping_amount
         self.extra_shipping_amount = extra_shipping_amount
         self.handling_amount = handling_amount
         self.insurance_amount = insurance_amount
         self.total_item_amount = total_item_amount
         self.invoice_number = invoice_number
-        self.checkout_options = checkout_options
+        self.checkout_options = checkout_options or []
         
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
@@ -583,8 +583,8 @@ class CartInfo(PayPalEntity):
     
     def __init__(self, tax_inclusive: bool = None, paypal_invoice_id: str = None, item_details: List[ItemDetail] = [], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.item_details = item_details
         self.tax_inclusive = tax_inclusive
+        self.item_details = item_details or []
         self.paypal_invoice_id = paypal_invoice_id
     
     @classmethod
@@ -701,7 +701,7 @@ class TransactionResponse(PayPalEntity):
     def __init__(self, account_number: str = None, 
     transaction_details: List[TransactionDetails] = [], **kwargs):
         self.account_number = account_number
-        self.transaction_details = transaction_details        
+        self.transaction_details = transaction_details or []
         self.page = self._json_response.get('page', kwargs.get('page'))
         self._end_date = self._json_response.get('end_date', kwargs.get('end_date'))
         self._start_date = self._json_response.get('start_date', kwargs.get('start_date'))

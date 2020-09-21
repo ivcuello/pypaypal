@@ -55,7 +55,7 @@ class EventType(PayPalEntity):
         self.name = name
         self.description = description
         self.status = status
-        self.resource_version = resource_version
+        self.resource_version = resource_version or []
     
     @classmethod
     def create(cls, name: str, description: str, status: str, resource_version: List[ResourceVersion]) -> 'EventType':
@@ -76,7 +76,7 @@ class Webhook(PayPalEntity):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.url = url
         self.webhook_id = webhook_id
-        self.event_types = event_types
+        self.event_types = event_types or []
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
 
     def to_dict(self) -> dict:

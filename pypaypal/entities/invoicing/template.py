@@ -47,7 +47,7 @@ class TemplateDetail(PayPalEntity):
         self.memo = memo
         self.payment_term = payment_term
         self.metadata = metadata
-        self.attachments = attachments
+        self.attachments = attachments or []
 
     def to_dict(self) -> dict:
         ret = super().to_dict()        
@@ -81,7 +81,7 @@ class TemplateDetail(PayPalEntity):
     ):
         return cls(
             reference, currency_code, note, terms_and_conditions, 
-            memo, payment_term, metadata, attachments
+            memo, payment_term, metadata, attachments or []
         )
 
 class TemplateConfiguration(PayPalEntity):

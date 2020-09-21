@@ -215,13 +215,13 @@ class BillingInfo(PayPalEntity):
     def __init__(self, failed_payments_count: int, outstanding_balance: Money, last_payment: LastPaymentDetails = None, cycle_executions: List[CycleExecution] = [], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.last_payment = last_payment
-        self.cycle_executions = cycle_executions
+        self.cycle_executions = cycle_executions or []
         self.outstanding_balance = outstanding_balance
         self.failed_payments_count = failed_payments_count
 
     @classmethod
     def create(cls, *, failed_payments_count: int, outstanding_balance: Money, last_payment: LastPaymentDetails = None, cycle_executions: List[CycleExecution] = []) -> 'BillingInfo':
-        return cls(failed_payments_count, outstanding_balance, last_payment, cycle_executions)
+        return cls(failed_payments_count, outstanding_balance, last_payment, cycle_executions or [])
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:        

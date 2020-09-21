@@ -195,7 +195,7 @@ class ReferencedPayoutCall(PayPalEntity):
         ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.payout_directive = payout_directive
-        self.referenced_payouts = referenced_payouts
+        self.referenced_payouts = referenced_payouts or []
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
 
     @classmethod

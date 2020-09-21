@@ -393,7 +393,7 @@ class PurchaseUnitRequest(PayPalEntity):
     ):
         return cls(
             reference_id, amount, payee, payment_instruction, description, custom_id, 
-            invoice_id, pur_id, soft_descriptor, items, shipping
+            invoice_id, pur_id, soft_descriptor, items or [], shipping
         )
 
 class OrderApplicationContext(ApplicationContext):

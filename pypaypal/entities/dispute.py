@@ -153,11 +153,11 @@ class DisputeTransaction(PayPalEntity):
             invoice_number: str = None, custom: str = None, items: List[ItemInfo] = [], **kwargs
         ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.items = items
         self.buyer  = buyer
         self.seller = seller
         self.custom = custom
-        self.messages = messages
+        self.items = items or []
+        self.messages = messages or []
         self.gross_amount = gross_amount
         self.invoice_number = invoice_number
         self.transaction_status = transaction_status
@@ -220,8 +220,8 @@ class DisputeEvidenceInfo(PayPalEntity):
 
     def __init__(self, trackers: List[DisputeTracker] = [], refund_ids: List[RefundId]=[], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.tracking_info = trackers
-        self.refunds_ids = refund_ids
+        self.tracking_info = trackers or []
+        self.refunds_ids = refund_ids or []
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
@@ -293,13 +293,13 @@ class Dispute(PayPalEntity):
         self.offer = offer
         self.reason = reason
         self.status = status
-        self.messages = messages
         self.dispute_id = dispute_id
         self.dispute_amount = amount
+        self.messages = messages or []
         self.dispute_state = dispute_state
         self.dispute_channel = dispute_channel
         self.dispute_outcome = dispute_outcome
-        self.disputed_transactions = disputed_transactions
+        self.disputed_transactions = disputed_transactions or []
         self.dispute_life_cycle_stage = dispute_life_cycle_stage
         self.extensions = self._json_response.get('extensions', kwargs.get('extensions')) 
         self._update_time = self._json_response.get('update_time', kwargs.get('update_time')) 

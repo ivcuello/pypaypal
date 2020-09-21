@@ -330,7 +330,7 @@ class EventClient(ClientBase):
         Returns:
             PaypalApiResponse[WebhookEvent] -- A response with the webhooks events.
         """
-        body = { 'webhook_ids': webhooks_ids }
+        body = { 'webhook_ids': webhooks_ids or [] }
         api_response = self._session.post(parse_url(self._base_url, event_id), json.dumps(body))
 
         if api_response.status_code // 100 != 2:

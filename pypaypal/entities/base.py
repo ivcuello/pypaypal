@@ -569,8 +569,8 @@ class BillingInfo(PayPalEntity):
     def __init__(self, business_name: str, name: PaypalName = None, address: PaypalPortableAddress = None, phones: List[PaypalPhoneDetail] = [], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.name = name
-        self.phones = phones
         self.address = address
+        self.phones = phones or []
         self.business_name = business_name
         self.language = self._json_response.get('language', kwargs.get('language'))
         self.email_address = self._json_response.get('email_address', kwargs.get('email_address'))
