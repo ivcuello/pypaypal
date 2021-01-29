@@ -36,7 +36,6 @@ if REQUIRED_PYTHON_VERSION > CURRENT_PYTHON_VERSION:
     """.format(CURRENT_PYTHON_VERSION, REQUIRED_PYTHON_VERSION))
     sys.exit(64)
 
-
 setup(
     name='pypaypal',
     version='1.0.0',
