@@ -1,4 +1,6 @@
-"""Test module for main http module 
+"""Integration Test module for main http module 
+   it's required to provide client & secret 
+   ENV variables for this tests executions
 """
 
 import os
