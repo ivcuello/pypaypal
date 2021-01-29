@@ -1,7 +1,5 @@
+"""Module with basic http constants & session handling. See: 
 """
-    Module with basic http constants & session handling
-"""
-
 import urllib.parse
 
 from enum import Enum
@@ -90,8 +88,7 @@ class PayPalToken(NamedTuple):
     
     @classmethod
     def serialize(cls, json_data: dict):
-        """
-            Serializes a paypal json OAuthResponse into an instance
+        """Serializes a paypal json OAuthResponse into an instance
         """
         return cls(
             json_data['scope'], json_data['access_token'], json_data['token_type'], 
@@ -493,50 +490,3 @@ def authenticate(client_id: str, secret: str, mode: SessionMode, auth_type: Auth
     if auth_type == AuthType.BASIC:
         return _BasicAuthSession(mode, token, client_id, secret)
     return _RefreshableSession(mode, token, client_id, secret, kwargs.get('refresh_limit'))
-
-def test_invalid(session :PayPalSession):
-    try:
-        with session:
-            pass
-        session.get('https://api.sandbox.paypal.com/v2/payments/authorizations/6W688518YP6703149')
-        raise AssertionError('This must be unreachable')
-    except ExpiredSessionError:
-        print('Good Job!!! Expired!!')
-
-if __name__ == '__main__':
-    client = ''
-    secret = ''
-    session_mode = SessionMode.SANDBOX
-
-    test_url = 'https://api.sandbox.paypal.com/v2/payments/authorizations/6W688518YP6703149'
-
-    oauth_session = authenticate(client, secret, session_mode, AuthType.TOKEN)
-    response = oauth_session.get(test_url)
-    oauth_session2 = session_from_token(oauth_session._paypal_token, session_mode)
-    response = oauth_session2.get(test_url)
-
-    with authenticate(client, secret, session_mode, AuthType.BASIC) as basic:
-        response = basic.get(test_url)
-
-    test_invalid(oauth_session)
-    test_invalid(oauth_session2)
-    
-    basic2 = authenticate(client, secret, session_mode, AuthType.BASIC)
-    response = basic2.get(test_url)
-    basic2._paypal_token = None
-    response = basic2.get(test_url)
-
-    refre = authenticate(client, secret, session_mode)
-    response = refre.get(test_url)
-
-    test_invalid(oauth_session)
-    test_invalid(oauth_session2)
-    test_invalid(basic2)
-    test_invalid(refre)
-    
-    with authenticate(client, secret, session_mode) as default:
-        response = default.get(test_url)
-    
-    refre2 = _RefreshableSession(session_mode, _authenticate(client, secret, session_mode), client, secret, 1)
-    response = refre2.get(test_url)
-    refre2._paypal_token = None
