@@ -1,9 +1,0 @@
-Invoicing Done
-Orders Done
-Payment Expirience Done
-Payments Done
-Payouts Done
-Paypal Sync Done
-Referenced Payouts Done
-Subscriptions Done
-Webhooks 
