@@ -58,11 +58,11 @@ In order to start a session based on authentication you need to specify the foll
 
 * **auth_type**: Which authorization type you'll use to communicate with the API. These can be:
 
-    - BASIC: Using basic auth for all request.
+    - **BASIC**: Using basic auth for all request.
 
-    - TOKEN: Authenticate once and use a token and keep the session until the token expires.
+    - **TOKEN**: Authenticate once and use a token and keep the session until the token expires.
 
-    - REFRESHABLE: Mix of BASIC and TOKEN to limit the amount of times the credentials are send back and forth a network. basically you authenticate the first time and get a token and the process will refresh the token logging in again with the credentials for an specified amount of sessions.
+    - **REFRESHABLE**: Mix of BASIC and TOKEN to limit the amount of times the credentials are send back and forth a network. basically you authenticate the first time and get a token and the process will refresh the token logging in again with the credentials for an specified amount of sessions.
 
 * **mode**: Session mode (LIVE or SANDBOX) 
 
