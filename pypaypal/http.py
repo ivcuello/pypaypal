@@ -1,4 +1,4 @@
-"""Module with basic http constants & session handling. See: 
+"""Module with basic http constants & session handling.
 """
 import urllib.parse
 
