@@ -30,13 +30,11 @@ LIVE_API_BASE_URL = 'https://api.paypal.com/v2/'
 """
 SANDBOX_API_BASE_URL = 'https://api.sandbox.paypal.com/v2/'
 
-"""
-    Live PayPal api base URL for v1 api requests.
+"""Live PayPal api base URL for v1 api requests.
 """
 LEGACY_LIVE_API_BASE_URL = 'https://api.paypal.com/v1/'
 
-"""
-    Sandbox PayPal api base URL for v1 api requests.
+"""Sandbox PayPal api base URL for v1 api requests.
 """
 LEGACY_SANDBOX_API_BASE_URL = 'https://api.sandbox.paypal.com/v1/'
 
@@ -49,8 +47,7 @@ class AuthType(Enum):
     REFRESHABLE = 3
 
 class SessionMode(Enum):
-    """
-        Session mode
+    """Session mode
     """
     LIVE = 1
     SANDBOX = 2
@@ -69,8 +66,7 @@ class SessionStatus(Enum):
     DISPOSED = 3
 
 class PayPalToken(NamedTuple):
-    """
-        Paypal access token wrapper.
+    """Paypal access token wrapper.
     """
     scope: str
     access_token: str
@@ -96,8 +92,7 @@ class PayPalToken(NamedTuple):
         )
 
 def parse_url(base: str, *args: str) -> str:
-    """
-        Safely parses a web url
+    """Safely parses a web url
     """
     # Making sure the base ends with '/'
     base = base.strip('/') + '/'
@@ -137,8 +132,7 @@ def _authenticate(client_id: str, secret:str, mode: SessionMode) -> PayPalToken:
     return PayPalToken.serialize(response.json())
 
 class PayPalSession(ABC):
-    """
-        PayPal session abstraction
+    """PayPal session abstraction
     """
     def __init__(self, auth_type: AuthType, session_mode: SessionMode, token: PayPalToken):
         """Constructor
@@ -242,8 +236,7 @@ class PayPalSession(ABC):
         self._dispose()
 
 class _OAuthSession(PayPalSession):
-    """
-        PayPal session obj for request with OAuthToken headers.
+    """PayPal session obj for request with OAuthToken headers.
 
         A standard session with a finite lifespan,
         once the session is expired this instance will not be valid for further
@@ -292,8 +285,7 @@ class _OAuthSession(PayPalSession):
         return f'_OAuthSession(session_mode={self.session_mode}, status={self.status})'
     
 class _BasicAuthSession(PayPalSession):
-    """
-        PayPal session obj for request with Basic Authorization.
+    """PayPal session obj for request with Basic Authorization.
 
         A session with an indefinite lifespan,
         all requests will use basic authorization which means that
@@ -391,8 +383,7 @@ class _BasicAuthSession(PayPalSession):
         return f'_BasicAuthSession(session_mode={self.session_mode}, status={self.status}, client={self._client})'
 
 class _RefreshableSession(PayPalSession):
-    """
-        PayPal session obj for request with with OAuthToken headers and Basic Authorization.
+    """PayPal session obj for request with with OAuthToken headers and Basic Authorization.
 
         A mixed session using the standard _OAuthSession approach for regular requests
         and a _BasicAuthSession request to perform a token refresh. This gives the session
