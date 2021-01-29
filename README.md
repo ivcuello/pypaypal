@@ -92,4 +92,4 @@ refresh_session = authenticate(
 ```
 
 [1]:https://developer.paypal.com/docs/api/overview/
-[2]:./http.py
+[2]:https://github.com/ivcuello/pypaypal/blob/master/pypaypal/http.py
