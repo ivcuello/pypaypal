@@ -18,6 +18,14 @@ Developed based on the available documentation at the [official Paypal API refer
 
 ## Basic Usage
 
+### Instalation 
+
+Install from PyPi using pip
+
+```sh
+pip install pypaypal
+```
+
 ### Starting a session
 
 Sessions can be started by importing [**http**][2] module which supports different ways of authentication and session types.
@@ -89,6 +97,37 @@ refresh_session = authenticate(
     AuthType.REFRESHABLE,
     refresh_limit=3
 )
+```
+
+### Making requests
+
+After the session is stablished you can perform requests by importing the client library of your choice, all requests objects and calls are based on the [official Paypal API reference][1].
+
+Sample request
+
+```python
+import json
+
+from pypaypal.http import (
+    SessionMode, 
+    PayPalToken,
+    session_from_token
+)
+
+from pypaypal.clients.orders import OrderClient
+from pypaypal.entities.base import PaypalApiResponse
+
+order_id = 'some id'
+token = PayPalToken.serialize(json.loads('A paypal OAuth token'))
+
+# Sandbox session from a token
+sandbox_session = session_from_token(
+    token=token, 
+    session_mode= SessionMode.SANDBOX
+)
+
+client = OrderClient.create(sandbox_session)
+response: PaypalApiResponse = client.show_order_details(order_id)
 ```
 
 [1]:https://developer.paypal.com/docs/api/overview/
