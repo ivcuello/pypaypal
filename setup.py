@@ -20,7 +20,12 @@ Author:
 import os
 import sys
 
+import pathlib
 from setuptools import setup, find_packages
+
+# Current folder and README.md
+HERE = pathlib.Path(__file__).parent
+README = (HERE / "README.md").read_text()
 
 CURRENT_PYTHON_VERSION = sys.version_info[:2]
 REQUIRED_PYTHON_VERSION = (3,6)
@@ -44,6 +49,8 @@ setup(
     author_email='ivcuello@gmail.com',
     url='https://github.com/ivcuello/pypaypal',
     description='Paypal API integration supporting some v1 & most of the current v2 rest APIs calls',
+    long_description=README,
+    long_description_content_type="text/markdown",    
     packages = find_packages(exclude=['docs', 'tests']),
     install_requires = [ 
         'python-dateutil',
