@@ -6,7 +6,7 @@ Currently developed API calls:
 
 * Invoicing
 * Orders
-* Payment Expirience
+* Payment Experience
 * Payments
 * Payouts
 * Paypal Sync
