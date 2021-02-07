@@ -46,13 +46,13 @@ token = PayPalToken.serialize(json.loads('A paypal OAuth token'))
 # Live session from a token
 live_session = session_from_token(
     token=token, 
-    session_mode= SessionMode.LIVE
+    mode= SessionMode.LIVE
 )
 
 # Sandbox session from a token
 sandbox_session = session_from_token(
     token=token, 
-    session_mode= SessionMode.SANDBOX
+    mode= SessionMode.SANDBOX
 )
 ```
 
@@ -123,7 +123,7 @@ token = PayPalToken.serialize(json.loads('A paypal OAuth token'))
 # Sandbox session from a token
 sandbox_session = session_from_token(
     token=token, 
-    session_mode= SessionMode.SANDBOX
+    mode= SessionMode.SANDBOX
 )
 
 client = OrderClient.create(sandbox_session)
