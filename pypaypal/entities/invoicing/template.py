@@ -18,7 +18,7 @@ from pypaypal.entities.base import (
     RecipientInfo
 )
 
-from pypaypal.entities.invoicing.invoice import (
+from pypaypal.entities.invoicing.base import (
     MetaData,
     InvoicerInfo,
     FileReference,

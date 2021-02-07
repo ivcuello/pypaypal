@@ -15,14 +15,18 @@ from pypaypal.entities.base import (
     Discount,
     DateRange,
     ActionLink, 
-    PaypalName,
     AmountRange, 
     PayPalEntity, 
     ResponseType, 
-    Money, 
-    RecipientInfo,
-    PaypalPhoneDetail,
-    PaypalPortableAddress
+    Money,
+    RecipientInfo    
+)
+
+from pypaypal.entities.invoicing.base import ( 
+    MetaData, 
+    InvoicerInfo, 
+    FileReference, 
+    PartialPayment
 )
 
 from pypaypal.entities.invoicing.template import Template
@@ -129,89 +133,6 @@ class InvoicePaymentTerm(PayPalEntity):
     def create(cls, term_type: str, due_date: datetime):
         return cls(term_type, due_date.strftime('%Y-%m-%d'))
 
-class FileReference(PayPalEntity):
-    """File reference object representation
-    """
-
-    def __init__(self, file_id: str, reference_url: str, content_type: str, size: str, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.id = file_id
-        self.reference_url = reference_url
-        self.content_type = content_type
-        self.size = size
-        default_time = datetime.now().strftime('%Y-%m-%dT%H:%M:%s')
-        self._create_time = self._json_response.get('create_time', kwargs.get('create_time', default_time))
-
-    @property
-    def create_time(self) -> datetime:
-        try:
-            return dateutil.parser.parse(self._create_time) if self._create_time else None
-        except:
-            return None
-
-    def to_dict(self) -> dict:
-        ret = super().to_dict()
-        ret['create_time'] = ret.pop('_create_time', None)
-        return ret
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-            json_data.get('id'), json_data.get('reference_url'), json_data.get('content_type'),
-            json_data.get('size'), json_response= json_data, response_type = response_type
-        )
-    
-    @classmethod
-    def create(cls, file_id: str, reference_url: str, content_type: str, size: str, creation: datetime = datetime.now()) -> 'FileReference':
-        return cls(file_id, reference_url, content_type, size, create_time = creation.strftime('%Y-%m-%dT%H:%M:%s'))
-
-class MetaData(PayPalEntity):
-    """Template audit metadata.
-    """
-
-    def __init__(self, created_by: str, last_updated_by: str, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.created_by = created_by
-        self.last_updated_by = last_updated_by
-        default_time = datetime.now().strftime('%Y-%m-%dT%H:%M:%s')
-        self._create_time = self._json_response.get('create_time', kwargs.get('create_time', default_time))
-        self._last_update_time = self._json_response.get('last_update_time', kwargs.get('last_update_time', default_time))
-
-    @property
-    def create_time(self) -> datetime:
-        try:
-            return dateutil.parser.parse(self._create_time) if self._create_time else None
-        except:
-            return None
-
-    @property
-    def last_updated_time(self) -> datetime:
-        try:
-            return dateutil.parser.parse(self._last_updated_time) if self._last_updated_time else None
-        except:
-            return None
-
-    def to_dict(self) -> dict:
-        ret = super().to_dict()
-        ret['create_time'] = ret.pop('_create_time', None)
-        ret['last_updated_time'] = ret.pop('_last_updated_time', None)
-        return ret
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-            json_data.get('created_by'), json_data.get('last_updated_by'), json_response= json_data, response_type = response_type
-        )
-
-    @classmethod
-    def create(cls, created_by: str, last_updated_by: str) -> 'MetaData':
-        creation = datetime.now().strftime('%Y-%m-%dT%H:%M:%s')
-        
-        return cls(
-            created_by, last_updated_by, 
-            created_time = creation, last_update_time = creation
-        )
-
 class InvoiceDetail(PayPalEntity):
     """Invoice detail object representation
     """
@@ -274,74 +195,6 @@ class InvoiceDetail(PayPalEntity):
             attachments or [], note = note, memo = memo, reference = reference, 
             invoice_date = invoice_date, terms_and_conditions = terms_and_conditions
         )
-
-class InvoicerInfo(PayPalEntity):
-    """Invoicer info object representation
-    """
-
-    def __init__(self, business_name: str, name: PaypalName = None, address : PaypalPortableAddress = None, phones: List[PaypalPhoneDetail] = None, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.name = name
-        self.phones = phones
-        self.address = address
-        self.business_name = business_name
-        self.tax_id = self._json_response.get('tax_id', kwargs.get('tax_id'))
-        self.website = self._json_response.get('website', kwargs.get('website'))
-        self.logo_url = self._json_response.get('logo_url', kwargs.get('logo_url'))
-        self.additional_notes = self._json_response.get('additional_notes', kwargs.get('additional_notes'))
-
-    def to_dict(self) -> dict:
-        ret = super().to_dict()        
-        if self.phones:
-            ret['phones'] = [ x.to_dict() for x in self.phones ]
-        return ret
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        address, name, phones = None, None, []
-        
-        if 'name' in json_data.keys():
-            name = PaypalName.serialize_from_json(json_data['name'], response_type)
-        
-        if 'address' in json_data.keys():
-            address = PaypalPortableAddress.serialize_from_json(json_data['address'], response_type)
-
-        if 'phones' in json_data.keys():
-            phones = [PaypalPhoneDetail.serialize_from_json(x, response_type) for x in json_data['phones']]
-        
-        return cls(
-            json_data.get('business_name'), name, address, phones, json_response= json_data, response_type = response_type
-        )
-
-    @classmethod
-    def create(
-        cls, business_name, *, name: PaypalName = None, 
-        address : PaypalPortableAddress = None, phones: List[PaypalPhoneDetail] = None, 
-        tax_id: str = None, website: str = None, logo_url: str = None, additional_notes: str = None 
-    ):        
-        return cls(
-            business_name, name, address, phones, 
-            tax_id = tax_id, website = website, logo_url = logo_url, 
-            additional_notes = additional_notes
-        )
-    
-class PartialPayment(PayPalEntity):
-    """Partial payment object representation
-    """
-    
-    def __init__(self, minimum_amount_due: Money, allow_partial_payment: bool, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.minimum_amount_due = minimum_amount_due
-        self.allow_partial_payment = allow_partial_payment
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amount = Money.serialize_from_json(json_data['minimum_amount_due'])
-        return cls(amount, json_data.get('allow_partial_payment'), json_response= json_data, response_type = response_type)
-
-    @classmethod
-    def create(cls, minimum_amount_due: Money, allow_partial_payment: bool = False):
-        return cls(minimum_amount_due, allow_partial_payment)
 
 class InvoiceConfiguration(PayPalEntity):
     """Invoice configuration object representation
@@ -460,10 +313,25 @@ class InvoicePayment(PayPalEntity):
 class Invoice(PayPalEntity):
     """Object representation for a paypal invoice
     """    
+ 
+   # Serializable paypal entity arrays
+    _ARRAY_TYPES = { 
+        'primary_recipients': RecipientInfo, 'payments': InvoicePayment,
+        'items': Item, 'refunds': Refund, 'templates': Template
+    }
+
+    # Serializable simple paypal entities
+    _ENTITY_TYPES = { 
+        'due_amount': Money, 'gratuity': Money,
+        'detail': InvoiceDetail, 'invoicer': InvoicerInfo, 
+        'configuration': InvoiceConfiguration, 'amount': Money
+    }
+ 
     def __init__(
         self, id:str, detail: InvoiceDetail, invoicer: InvoicerInfo, primary_recipients: List[RecipientInfo], 
         items: List[Item], configuration: InvoiceConfiguration, amount: Money, payments: List[InvoicePayment], 
-        refunds: List[Refund], due_amount: Money = None, gratuity: Money = None, **kwargs
+        refunds: List[Refund], due_amount: Money = None, gratuity: Money = None, templates: List[Template] = [], 
+        **kwargs
     ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.id = id
@@ -477,6 +345,7 @@ class Invoice(PayPalEntity):
         self.refunds = refunds
         self.gratuity = gratuity
         self.due_amount = due_amount
+        self.templates = templates or []
         self.status = self._json_response.get('status', kwargs.get('status'))
         self.additional_recipients = self._json_response.get('additional_recipients', kwargs.get('additional_recipients'))
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
@@ -549,37 +418,8 @@ class Invoice(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        primary_recipients, items, payments, refunds, templates = [], [], [], [], []
-        detail, invoicer, configuration, amount, due_amount, gratuity  = None, None, None, None, None, None
-
-        if 'primary_recipients' in json_data.keys():
-            primary_recipients = [RecipientInfo.serialize_from_json(x, response_type) for x in json_data['primary_recipients']]
-        if 'items' in json_data.keys():
-            items = [Item.serialize_from_json(x, response_type) for x in json_data['items']]
-        if 'payments' in json_data.keys():
-            payments = [InvoicePayment.serialize_from_json(x, response_type) for x in json_data['payments']]
-        if 'refunds' in json_data.keys():
-            refunds = [Refund.serialize_from_json(x, response_type) for x in json_data['refunds']]
-        
-        if 'detail' in json_data.keys():
-            detail = InvoiceDetail.serialize_from_json(json_data['detail'], response_type)
-        if 'invoicer' in json_data.keys():
-            invoicer = InvoicerInfo.serialize_from_json(json_data['invoicer'], response_type)
-        if 'configuration' in json_data.keys():
-            configuration = InvoiceConfiguration.serialize_from_json(json_data['configuration'], response_type)
-        if 'amount' in json_data.keys():
-            amount = Money.serialize_from_json(json_data['amount'], response_type)
-        if 'gratuity' in json_data.keys():
-            gratuity = Money.serialize_from_json(json_data['gratuity'], response_type)
-        if 'due_amount' in json_data.keys():
-            due_amount = Money.serialize_from_json(json_data['due_amount'], response_type)
-        if 'templates' in json_data.keys():
-            templates = [ Template.serialize_from_json(x) for x in json_data['templates'] ]
-            
-        return cls(
-            json_data.get('id'), detail, invoicer, primary_recipients, items, configuration, amount,
-            payments, refunds, due_amount, gratuity, json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(cls: Type[T], *, detail: InvoiceDetail, invoicer: InvoicerInfo, primary_recipients: List[RecipientInfo], 
