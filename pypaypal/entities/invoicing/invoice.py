@@ -9,10 +9,8 @@ import dateutil.parser
 
 from pypaypal.entities.base import ( 
     T, 
-    Tax,
     Item,
     Refund,
-    Discount,
     DateRange,
     ActionLink, 
     AmountRange, 
@@ -24,83 +22,14 @@ from pypaypal.entities.base import (
 
 from pypaypal.entities.invoicing.base import ( 
     MetaData, 
+    ShippingCost,
     InvoicerInfo, 
     FileReference, 
-    PartialPayment
+    PartialPayment,
+    AmountSummaryDetail
 )
 
 from pypaypal.entities.invoicing.template import Template
-
-class AggregatedDiscount(PayPalEntity):
-    """Aggregated discount object representation
-    """
-    def __init__(self, invoice_discount: Discount, item_discount: Money, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.item_discount = item_discount
-        self.invoice_discount = invoice_discount
-    
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        itm_disc = Discount.serialize_from_json(json_data['item_discount'])
-        inv_disc = Discount.serialize_from_json(json_data['invoice_discount'])
-
-        return cls(inv_disc, itm_disc, json_response= json_data, response_type = response_type)
-
-class ShippingCost(PayPalEntity):
-    """Shipping Cost object representation
-    """
-    def __init__(self, tax: Tax, amount: Money, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.tax = tax
-        self.amount = amount
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        tax = Discount.serialize_from_json(json_data['tax'])
-        amt = Money.serialize_from_json(json_data['amount'])
-        return cls(tax, amt, json_response= json_data, response_type = response_type)
-
-class CustomAmount(PayPalEntity):
-    """Custom amount object representation
-    """
-    def __init__(self, label: str, amount: Money, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.label = label
-        self.amount = amount
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amt = Money.serialize_from_json(json_data['amount'])
-        return cls(json_data['label'], amt, json_response= json_data, response_type = response_type)
-
-class AmountWithBreakdown(PayPalEntity):
-    """Amount with breakdown object representation
-    """
-
-    def __init__(self, item_total: Money, discount: AggregatedDiscount, tax_total: Money, shipping: ShippingCost, custom: CustomAmount, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))        
-        self.item_total = item_total
-        self.discount = discount
-        self.tax_total = tax_total
-        self.shipping = shipping
-        self.custom = custom
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        item_total, discount, tax_total, shipping, custom = None, None, None, None, None
-        
-        if 'item_total' in json_data.keys():
-            item_total = Money.serialize_from_json(json_data['item_total'])
-        if 'discount' in json_data.keys():
-            discount = AggregatedDiscount.serialize_from_json(json_data['discount'])
-        if 'tax_total' in json_data.keys():
-            tax_total = Money.serialize_from_json(json_data['tax_total'])
-        if 'shipping' in json_data.keys():
-            shipping = ShippingCost.serialize_from_json(json_data['shipping'])
-        if 'custom' in json_data.keys():
-            custom = CustomAmount.serialize_from_json(json_data['custom'])
-
-        return cls(item_total, discount, tax_total, shipping, custom, json_response= json_data, response_type = response_type)
 
 class InvoicePaymentTerm(PayPalEntity):
     """Invoice payment term object representation
@@ -224,25 +153,6 @@ class InvoiceConfiguration(PayPalEntity):
     ):
         return cls(template_id, tax_calc_after_discount, tax_inclusive, allow_tip, partial_payment)
 
-class AmountSummaryDetail(PayPalEntity):
-    """Amount sumary object representation
-    """
-
-    def __init__(self, currency_code: str, value: str, breakdown: AmountWithBreakdown, **kwargs):
-        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.value = value
-        self.currency_code = currency_code
-        self.breakdown = breakdown
-
-    @classmethod
-    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        breakdown = AmountWithBreakdown.serialize_from_json(json_data['breakdown'], response_type)
-        return cls(json_data['currency_code'], json_data['value'], breakdown, json_response= json_data, response_type = response_type)
-    
-    @classmethod
-    def create(cls, currency_code: str, value: str, breakdown: AmountWithBreakdown) -> 'AmountSummaryDetail':
-        return cls(currency_code, value, breakdown)
-
 class PaymentDetail(PayPalEntity):
     """Payment object representation for invoice draft
     """
@@ -324,28 +234,23 @@ class Invoice(PayPalEntity):
     _ENTITY_TYPES = { 
         'due_amount': Money, 'gratuity': Money,
         'detail': InvoiceDetail, 'invoicer': InvoicerInfo, 
-        'configuration': InvoiceConfiguration, 'amount': Money
+        'configuration': InvoiceConfiguration, 'amount': AmountSummaryDetail
     }
  
-    def __init__(
-        self, id:str, detail: InvoiceDetail, invoicer: InvoicerInfo, primary_recipients: List[RecipientInfo], 
-        items: List[Item], configuration: InvoiceConfiguration, amount: Money, payments: List[InvoicePayment], 
-        refunds: List[Refund], due_amount: Money = None, gratuity: Money = None, templates: List[Template] = [], 
-        **kwargs
-    ):
+    def __init__(self,  **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.id = id
-        self.detail = detail
-        self.invoicer = invoicer
-        self.primary_recipients = primary_recipients
-        self.items = items
-        self.configuration = configuration
-        self.amount = amount
-        self.payments = payments
-        self.refunds = refunds
-        self.gratuity = gratuity
-        self.due_amount = due_amount
-        self.templates = templates or []
+        self.id: str = kwargs.get('id', None)
+        self.gratuity: Money = kwargs.get('gratuity', None)
+        self.due_amount: Money = kwargs.get('due_amount', None)
+        self.detail: InvoiceDetail = kwargs.get('detail', None)
+        self.invoicer: InvoicerInfo = kwargs.get('invoicer', None)
+        self.amount: AmountSummaryDetail = kwargs.get('amount', None)
+        self.configuration: InvoiceConfiguration = kwargs.get('configuration', None)
+        self.items: List[Item] = kwargs.get('items', [])
+        self.refunds: List[Refund] = kwargs.get('refunds', [])
+        self.templates: List[Template] = kwargs.get('templates', [])
+        self.payments: List[InvoicePayment] = kwargs.get('payments', [])
+        self.primary_recipients: List[RecipientInfo] = kwargs.get('primary_recipients', [])
         self.status = self._json_response.get('status', kwargs.get('status'))
         self.additional_recipients = self._json_response.get('additional_recipients', kwargs.get('additional_recipients'))
         self.links = [ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in self._json_response.get('links', [])]
@@ -429,8 +334,9 @@ class Invoice(PayPalEntity):
         add_rep = [{ 'email_address': x} for x in additional_recipients]
 
         return cls(
-            None, detail, invoicer, primary_recipients, items, configuration, amount,
-            payments, refunds, due_amount, gratuity, additional_recipients = add_rep
+            id= None, detail=detail, invoicer=invoicer, primary_recipients= primary_recipients,
+            items=items, configuration=configuration, amount=amount, payments=payments, 
+            refunds=refunds, due_amount=due_amount, gratuity=gratuity, additional_recipients = add_rep
         )
 
 class InvoiceSearchRequest:

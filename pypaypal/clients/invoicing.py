@@ -51,16 +51,20 @@ class InvoiceClient(ClientBase):
     def __init__(self, base_url: str, session: PayPalSession):
         super().__init__(base_url, session)
     
-    def generate_invoice_number(self) -> str:
+    def generate_invoice_number(self, invoice_number: str = None) -> str:
         """Calls the paypal API to generate the next invoice number that is available to the merchant.
         
+        Keyword Arguments:
+            invoice_number {str} -- Optional invoice number. (default: {None})
+
         Returns:
             str -- The generated invoice number
 
         Raises:
             PaypalRequestError -- If there's an error with the API request
         """
-        api_response = self._session.post(parse_url(self._base_url, 'generate-next-invoice-number'), None)
+        body = json.dumps( { 'invoice_number': invoice_number }) if invoice_number else None
+        api_response = self._session.post(parse_url(self._base_url, 'generate-next-invoice-number'), body)
 
         if api_response.status_code != 200:
             raise PaypalRequestError(PayPalErrorDetail.serialize_from_json(api_response.json()))
@@ -83,7 +87,7 @@ class InvoiceClient(ClientBase):
         
         return PaypalApiResponse.success(response)
 
-    def list_invoices(self, page: int, page_size: int, total_required: bool, fields: List[str]) -> PaypalPage[Invoice]:
+    def list_invoices(self, page: int = 1, page_size: int = 10, total_required: bool = True, fields: List[str] = []) -> PaypalPage[Invoice]:
         """Calls the paypal API to get an invoice page.
         
         Arguments:
@@ -95,7 +99,10 @@ class InvoiceClient(ClientBase):
         Returns:
             PaypalPage -- The paged elements in paypal API paged response 
         """
-        query_params = { page: page, page_size: page_size, total_required: total_required, fields: ','.join(fields) }
+        query_params = { 'page': page, 'page_size': page_size, 'total_required': total_required }
+
+        if fields:
+            query_params['fields'] = ','.join(fields)
 
         response = self._session.get(parse_url(self._base_url, 'invoices'), query_params)
 
@@ -103,8 +110,8 @@ class InvoiceClient(ClientBase):
             return PaypalPage.error(response)
         
         json_response = response.json()
-        items = [ Invoice.serialize_from_json(x) for x in json_response['items']]
-        links = [ ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in json_response['links'] ]
+        items = [ Invoice.serialize_from_json(x) for x in json_response.get('items', [])]
+        links = [ ActionLink(x['href'], x['rel'], x.get('method', 'GET')) for x in json_response.get('links', []) ]
 
         return PaypalPage.success(response, json_response.get('total_items'), json_response.get('total_pages'), items, links)
 
@@ -471,7 +478,7 @@ class InvoiceTemplateClient(ClientBase):
         Returns:
             PaypalApiResponse[Template] -- The paypal API response
         """
-        response = self._session.post(self._base_url, json.dumps(template.to_dict()), headers)
+        response = self._session.post(self._base_url, json.dumps(template.to_dict()), headers=headers)
 
         if response.status_code != 200:
             return PaypalPage.error(response)

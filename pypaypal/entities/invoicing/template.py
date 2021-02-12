@@ -22,27 +22,67 @@ from pypaypal.entities.invoicing.base import (
     MetaData,
     InvoicerInfo,
     FileReference,
-    PartialPayment
+    PartialPayment,
+    AmountSummaryDetail
 )
 
 class InvoiceListRequestField(Enum):
     ALL = 1
     NONE = 2
 
+class PmtTermType(Enum):
+    #  The payment for the invoice is due upon receipt of the invoice.
+    DUE_ON_RECEIPT = 1
+    #  The payment for the invoice is due on the date specified in the invoice.
+    DUE_ON_DATE_SPECIFIED = 2
+    #  The payment for the invoice is due in 10 days.
+    NET_10 = 3
+    #  The payment for the invoice is due in 15 days.
+    NET_15 = 4
+    #  The payment for the invoice is due in 30 days.
+    NET_30 = 5
+    #  The payment for the invoice is due in 45 days.
+    NET_45 = 6
+    #  The payment for the invoice is due in 60 days.
+    NET_60 = 7
+    #  The payment for the invoice is due in 90 days.
+    NET_90 = 8
+    #  The invoice has no payment due date.    
+    NO_DUE_DATE = 9
+
+class PaymentTermType(PayPalEntity):
+    """PaymentTermType obj representation
+    """
+    def __init__(self, term_type: str, **kwargs):
+        super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
+        self.term_type = term_type
+    
+    @property
+    def term_type_enum(self) -> PmtTermType:
+        return PmtTermType[self.term_type]
+
+    @classmethod
+    def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
+        args = super()._build_args(json_data)
+        return cls(**args, json_response= json_data, response_type = response_type)
+
 class TemplateDetail(PayPalEntity):
     """Template detail object representation.
     """
 
+    _ARRAY_TYPES = { 'attachments': FileReference }
+    _ENTITY_TYPES = { 'metadata': MetaData, 'payment_term': PaymentTermType }
+
     def __init__(
         self, reference: str, currency_code: str, note: str, 
-        terms_and_conditions: str, memo: str, payment_term: str,
-        metadata: MetaData, attachments: List[FileReference] = [],
+        terms_and_conditions: str, memo: str, payment_term: PaymentTermType,
+        metadata: MetaData = None, attachments: List[FileReference] = [],
         **kwargs
     ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.reference = reference
         self.currency_code = currency_code
-        self.note  = note
+        self.note = note
         self.terms_and_conditions = terms_and_conditions
         self.memo = memo
         self.payment_term = payment_term
@@ -59,19 +99,8 @@ class TemplateDetail(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        metadata, attachments = None, []
-        
-        if 'metadata' in json_data.keys():
-            metadata = MetaData.serialize_from_json(json_data, response_type)
-        
-        if 'attachments' in json_data.keys():
-            attachments = [FileReference.serialize_from_json(x, response_type) for x in json_data['attachments']]
-
-        return cls(
-            json_data.get('reference'), json_data.get('currency_code'), json_data.get('note'), 
-            json_data.get('terms_and_conditions'), json_data.get('memo'), json_data.get('payment_term'),
-            metadata, attachments, json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(
@@ -88,48 +117,53 @@ class TemplateConfiguration(PayPalEntity):
     """Invoice configuration object representation
     """
 
-    def __init__(self, tax_calc_after_discount: bool, tax_inclusive: bool, allow_tip: bool, partial_payment: PartialPayment=None, **kwargs):
+    _ENTITY_TYPES = {'partial_payment': PartialPayment}
+
+    def __init__(self, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.allow_tip = allow_tip
-        self.tax_inclusive = tax_inclusive
-        self.partial_payment = partial_payment
-        self.tax_calc_after_discount = tax_calc_after_discount
+        self.allow_tip: bool = kwargs.get('allow_tip', False)
+        self.tax_inclusive: bool = kwargs.get('tax_inclusive', False)
+        self.partial_payment: PartialPayment = kwargs.get('partial_payment', None)
+        self.tax_calculated_after_discount: bool = kwargs.get('tax_calculated_after_discount', True)
     
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        partial_payment = PartialPayment.serialize_from_json(json_data['partial_payment']) if 'partial_payment' in json_data.keys() else None
-
-        return cls(
-            json_data.get('tax_calc_after_discount'), json_data.get('tax_inclusive'),
-            json_data.get('allow_tip'), partial_payment, json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(
-        cls, *, tax_calc_after_discount: bool = True, tax_inclusive: bool = False,
+        cls, *, tax_calculated_after_discount: bool = True, tax_inclusive: bool = False,
         allow_tip: bool = False, partial_payment: PartialPayment=None
     ):
-        return cls(tax_calc_after_discount, tax_inclusive, allow_tip, partial_payment)
+        return cls(
+            tax_calculated_after_discount=tax_calculated_after_discount,
+            tax_inclusive=tax_inclusive, allow_tip=allow_tip, 
+            partial_payment=partial_payment
+        )
 
 class TemplateInfo(PayPalEntity):
-    """ Template info object representation. 
+    """Template info object representation. 
         Includes invoicer business information, invoice recipients,
         items, and configuration.
     """
     
-    def __init__(
-        self, detail: TemplateDetail, invoicer: InvoicerInfo, primary_recipients: RecipientInfo,
-        items: List[Item], configuration: TemplateConfiguration, amount: Money, due_amount: Money,
-        **kwargs
-    ):
+    _ARRAY_TYPES = { 'items': Item, 'primary_recipients': RecipientInfo }
+
+    _ENTITY_TYPES = {
+        'detail': TemplateDetail, 'invoicer': InvoicerInfo,
+        'configuration': TemplateConfiguration, 'amount': AmountSummaryDetail, 'due_amount': Money
+    }
+
+    def __init__(self, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
-        self.detail = detail
-        self.invoicer = invoicer
-        self.primary_recipients = primary_recipients
-        self.items = items
-        self.configuration = configuration
-        self.amount = amount
-        self.due_amount = due_amount
+        self.due_amount: Money = kwargs.get('due_amount')
+        self.detail: TemplateDetail = kwargs.get('detail')
+        self.invoicer: InvoicerInfo = kwargs.get('invoicer')
+        self.amount: AmountSummaryDetail = kwargs.get('amount')
+        self.configuration: TemplateConfiguration = kwargs.get('configuration')
+        self.items: List[Item] = kwargs.get('items', [])
+        self.primary_recipients: List[RecipientInfo] = kwargs.get('primary_recipients')        
         self.additional_recipients = self._json_response.get('additional_recipients', kwargs.get('additional_recipients'))
     
     def to_dict(self) -> dict:
@@ -140,41 +174,21 @@ class TemplateInfo(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        primary_recipients, items  = [], []
-        detail, invoicer, configuration, amount, due_amount  = None, None, None, None, None
-
-        if 'primary_recipients' in json_data.keys():
-            primary_recipients = [RecipientInfo.serialize_from_json(x, response_type) for x in json_data['primary_recipients']]
-        if 'items' in json_data.keys():
-            items = [Item.serialize_from_json(x, response_type) for x in json_data['items']]
-        
-        if 'detail' in json_data.keys():
-            detail = TemplateDetail.serialize_from_json(json_data['detail'], response_type)
-        if 'invoicer' in json_data.keys():
-            invoicer = InvoicerInfo.serialize_from_json(json_data['invoicer'], response_type)
-        if 'configuration' in json_data.keys():
-            configuration = TemplateConfiguration.serialize_from_json(json_data['configuration'], response_type)
-        if 'amount' in json_data.keys():
-            amount = Money.serialize_from_json(json_data['amount'], response_type)
-        if 'due_amount' in json_data.keys():
-            due_amount = Money.serialize_from_json(json_data['due_amount'], response_type)
-
-        return cls(
-            detail, invoicer, primary_recipients, items, configuration, amount, 
-            due_amount, json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(
         cls: Type[T], *, detail: TemplateDetail, invoicer: InvoicerInfo, primary_recipients: List[RecipientInfo], 
-        additional_recipients: List[str], items: List[Item], configuration: TemplateConfiguration, amount: Money,
+        additional_recipients: List[str], items: List[Item], configuration: TemplateConfiguration, amount: AmountSummaryDetail,
         due_amount: Money = None)  -> 'TemplateInfo':
 
         add_rep = [{ 'email_address': x} for x in additional_recipients]
 
         return cls(
-            detail, invoicer, primary_recipients, items, 
-            configuration, amount, due_amount, additional_recipients = add_rep
+            detail=detail, invoicer=invoicer, primary_recipients=primary_recipients, 
+            items=items, configuration=configuration, amount=amount, due_amount=due_amount, 
+            additional_recipients = add_rep
         )
 
 class DisplayPreference(PayPalEntity):
@@ -195,6 +209,9 @@ class DisplayPreference(PayPalEntity):
 class TemplateItemSetting(PayPalEntity):
     """Template item setting object representation
     """
+    
+    _ENTITY_TYPES = {'display_preference': DisplayPreference}
+
     def __init__(self, field_name: str, display_preference: DisplayPreference, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.field_name = field_name
@@ -202,12 +219,8 @@ class TemplateItemSetting(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        pref = None
-        
-        if 'display_preference' in json_data.keys():
-            pref = DisplayPreference.serialize_from_json(json_data['display_preference'], response_type)
-
-        return cls(json_data['field_name'], pref, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(cls, field_name: str, hidden: bool = False) -> 'TemplateItemSetting':
@@ -216,6 +229,9 @@ class TemplateItemSetting(PayPalEntity):
 class TemplateSubtotalSetting(PayPalEntity):
     """Template subtotal setting object representation
     """
+
+    _ENTITY_TYPES = {'display_preference': DisplayPreference}
+
     def __init__(self, field_name: str, display_preference: DisplayPreference, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.field_name = field_name
@@ -223,12 +239,8 @@ class TemplateSubtotalSetting(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        pref = None
-        
-        if 'display_preference' in json_data.keys():
-            pref = DisplayPreference.serialize_from_json(json_data['display_preference'], response_type)
-
-        return cls(json_data['field_name'], pref, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(cls, field_name: str, hidden: bool = False) -> 'TemplateSubtotalSetting':
@@ -237,6 +249,11 @@ class TemplateSubtotalSetting(PayPalEntity):
 class TemplateSettings(PayPalEntity):
     """Template show/hide settings object representation.
     """
+    _ARRAY_TYPES = { 
+        'template_item_settings': TemplateItemSetting, 
+        'template_subtotal_settings': TemplateSubtotalSetting 
+    }
+
     def __init__(self, 
         template_item_settings: List[TemplateItemSetting], 
         template_subtotal_settings: List[TemplateSubtotalSetting], **kwargs
@@ -255,15 +272,8 @@ class TemplateSettings(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        item_settings, subtotal_settings = [], []
-        
-        if 'template_item_settings' in json_data.keys():
-            item_settings = [TemplateItemSetting.serialize_from_json(x, response_type) for x in json_data['template_item_settings']]
-
-        if 'template_subtotal_settings' in json_data.keys():
-            item_settings = [TemplateSubtotalSetting.serialize_from_json(x, response_type) for x in json_data['template_subtotal_settings']]
-
-        return cls(item_settings, subtotal_settings, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data=json_data, array_types=cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(cls, field_name: str, hidden: bool = False) -> 'TemplateSubtotalSetting':
@@ -272,10 +282,13 @@ class TemplateSettings(PayPalEntity):
 class Template(PayPalEntity):
     """Invoice template object representation    
     """
+
+    _ENTITY_TYPES = { 'template_info': TemplateInfo, 'settings': TemplateSettings }
+
     def __init__(
-        self, name: str, default_template: bool, 
+        self, default_template: bool, 
         template_info: TemplateInfo, settings: TemplateSettings, 
-        unit_of_measure: str, **kwargs
+        unit_of_measure: str, name: str = None, **kwargs
         ):
             super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
             self.name = name
@@ -316,22 +329,12 @@ class Template(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        template_info, template_settings = None, None
-        
-        if 'template_info' in json_data.keys():
-            template_info = TemplateInfo.serialize_from_json(json_data['template_info'], response_type)
-        if 'template_settings' in json_data.keys():
-            template_settings = TemplateSettings.serialize_from_json(json_data['template_settings'], response_type)
-
-        return cls(
-            json_data.get('name'), json_data.get('default_template'), template_info, 
-            template_settings, json_data.get('unit_of_measure'), json_response= json_data,
-            response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
     @classmethod
     def create(
             cls, name: str, template_info: TemplateInfo, settings: TemplateSettings, 
             unit_of_measure: str, default_template: bool = False
         ) -> 'Template':
-            return cls(name, default_template, template_info, settings, unit_of_measure)
+            return cls(default_template, template_info, settings, unit_of_measure, name=name)

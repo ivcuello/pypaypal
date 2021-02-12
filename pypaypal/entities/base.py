@@ -102,7 +102,7 @@ class PayPalEntity(ABC):
             if isinstance(v, Iterable) and not isinstance(v, str):
                 d[k] = [ x.to_dict() if isinstance(x, PayPalEntity) else x for x in v ]
 
-        return { k : v for k,v in { **d, **pp_entity_props }.items() if v != None and k not in {'_response_type', '_json_response'} }
+        return { k : v for k,v in { **d, **pp_entity_props }.items() if v != None and v != [] and k not in {'_response_type', '_json_response'} }
 
     @classmethod
     def _build_args(cls, json_data: dict, entity_types: Dict[str, T] = dict(), array_types: Dict[str, Iterable[T]] = dict()) -> dict:
@@ -122,7 +122,7 @@ class PayPalEntity(ABC):
             # Primitives
             **json_data,
             # Serialized types
-            **{ k : entity_types[k].serialize_from_json(v) for k,v in json_data.items() if k in entity_types and v },
+            **{ k : entity_types[k].serialize_from_json(v) for k,v in json_data.items() if k in entity_types.keys() and v },
             # Serilized type arrays
             **{ k : [array_types[k].serialize_from_json(v) for v in json_data[k]] for k in json_data.keys() if k in array_types }
         }
@@ -437,8 +437,8 @@ class PaypalPortableAddress(PayPalEntity):
         self.address_details = details
         self.postal_code = postal_code
         self.country_code = country_code
-        self._admin_areas = { x.adm_number : x.adm_area_info for x in admin_areas }
-        self._address_lines = { x.addr_number : x.addr_line_info for x in address_lines }
+        self._admin_areas = { x.adm_number : x for x in admin_areas }
+        self._address_lines = { x.addr_number : x for x in address_lines }
 
     def _adm_area_for_index(self, index: int) -> str:
         return self._admin_areas[index].adm_area_info if index in self._admin_areas.keys() else None
@@ -550,7 +550,10 @@ class PaypalPhoneDetail(PayPalEntity):
 class ContactInformation(PayPalEntity):
     """Contact information object representation
     """
-    def __init__(self, business_name: str, name: PaypalName = None, address: PaypalPortableAddress = None, **kwargs):
+    
+    _ENTITY_TYPES = { 'name': PaypalName, 'address': PaypalPortableAddress }
+
+    def __init__(self, business_name: str = None, name: PaypalName = None, address: PaypalPortableAddress = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.name = name
         self.address = address
@@ -558,15 +561,17 @@ class ContactInformation(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        address = PaypalPortableAddress.serialize_from_json(json_data)
-        name = PaypalName.serialize_from_json(json_data['name']) if 'name' in json_data.keys() else None
-
-        return cls(json_data['business_name'], name, address, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class BillingInfo(PayPalEntity):
     """Billing info object representation
     """
-    def __init__(self, business_name: str, name: PaypalName = None, address: PaypalPortableAddress = None, phones: List[PaypalPhoneDetail] = [], **kwargs):
+
+    _ARRAY_TYPES = { 'phones': PaypalPhoneDetail }
+    _ENTITY_TYPES = { 'name': PaypalName, 'address': PaypalPortableAddress }
+
+    def __init__(self, business_name: str = None, name: PaypalName = None, address: PaypalPortableAddress = None, phones: List[PaypalPhoneDetail] = [], **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.name = name
         self.address = address
@@ -578,18 +583,8 @@ class BillingInfo(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        phones = []
-        address = PaypalPortableAddress.serialize_from_json(json_data)
-        name = PaypalName.serialize_from_json(json_data['name']) if 'name' in json_data.keys() else None
-
-        j_phones = json_data.get('phones')
-
-        if j_phones:
-            phones = [ PaypalPhoneDetail.serialize_from_json(x, response_type) for x in j_phones ]
-
-        return cls(
-            json_data['business_name'], name, address, phones, json_response= json_data, response_type = response_type
-        )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES, cls._ARRAY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class RecipientInfo(PayPalEntity):
     """Recipient info object representation
@@ -610,7 +605,9 @@ class Tax(PayPalEntity):
     """Tax object representation
     """
 
-    def __init__(self, name: str, percent: str, amount: Money, **kwargs):
+    _ENTITY_TYPES = { 'amount': Money }
+
+    def __init__(self, name: str = None, percent: str = None, amount: Money = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.name = name
         self.amount = amount
@@ -618,26 +615,33 @@ class Tax(PayPalEntity):
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amount = Money.serialize_from_json(json_data['amount']) if 'amount' in json_data.keys() else None
-        return cls(json_data['name'], amount, json_data['pecent'], json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class Discount(PayPalEntity):
     
-    def __init__(self, percent: str, amount: Money, **kwargs):
+    _ENTITY_TYPES = { 'amount': Money }
+
+    def __init__(self, percent: str = None, amount: Money = None, **kwargs):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.amount = amount
         self.percent = percent
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        amount = Money.serialize_from_json(json_data['amount']) if 'amount' in json_data.keys() else None
-        return cls(json_data['pecent'], amount, json_response= json_data, response_type = response_type)
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class Item(PayPalEntity):
     """Item object representation
     """
 
-    def __init__(self, id: str, name: str, quantity: str, unit_amount: str, tax: Tax = None, discount: Discount = None, **kwargs):
+    _ENTITY_TYPES = { 'tax': Tax, 'discount': Discount, 'unit_amount': Money }
+
+    def __init__(
+            self, id: str = None, name: str = None, quantity: str = None, 
+            unit_amount: Money = None, tax: Tax = None, discount: Discount = None, **kwargs
+        ):
         super().__init__(kwargs.get('json_response', dict()), kwargs.get('response_type', ResponseType.MINIMAL))
         self.id = id 
         self.tax = tax
@@ -659,14 +663,12 @@ class Item(PayPalEntity):
     def to_dict(self) -> dict:
         ret = super().to_dict()
         ret['item_date'] = ret.pop('_item_date', None)
-        return { k:v for k,v in ret if v != None }
+        return { k:v for k,v in ret.items() if v != None }
 
     @classmethod
     def serialize_from_json(cls: Type[T], json_data: dict, response_type: ResponseType = ResponseType.MINIMAL) -> T:
-        return cls(
-                json_data['id'], json_data['name'], json_data['quantity'], json_data['unit_amount'],
-                json_response= json_data, response_type = response_type
-            )
+        args = super()._build_args(json_data, cls._ENTITY_TYPES)
+        return cls(**args, json_response= json_data, response_type = response_type)
 
 class RefundDetail(PayPalEntity):
     """Refund detail object representation
