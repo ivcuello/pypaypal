@@ -883,10 +883,10 @@ class ApplicationContext(PayPalEntity):
     
     @classmethod
     def create(cls, brand_name: str = None, locale: str = None, return_url: str = None, cancel_url: str = None, 
-        payment_method: PaymentMethod = None, landing_page: AppCtxLandingPage = AppCtxLandingPage.NO_PREFERENCE,
-        shipping_preference: AppCtxShippingPreference = AppCtxShippingPreference.GET_FROM_FILE, 
+        payment_method: PaymentMethod = None, landing_page: str = AppCtxLandingPage.NO_PREFERENCE.name,
+        shipping_preference: str = AppCtxShippingPreference.GET_FROM_FILE.name, 
         user_action: str = None) -> 'ApplicationContext':
         return cls(
-            brand_name, locale, landing_page.name, shipping_preference.name, 
+            brand_name, locale, landing_page, shipping_preference,
             user_action, payment_method, return_url, cancel_url
         )
