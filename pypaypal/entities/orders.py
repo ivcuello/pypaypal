@@ -417,10 +417,11 @@ class OrderApplicationContext(ApplicationContext):
     def create(cls, brand_name: str = None, locale: str = None, return_url: str = None, cancel_url: str = None, 
         payment_method: PaymentMethod = None, landing_page: AppCtxLandingPage = AppCtxLandingPage.NO_PREFERENCE,
         shipping_preference: AppCtxShippingPreference = AppCtxShippingPreference.GET_FROM_FILE, 
-        user_action: OrderUserAction = OrderUserAction.CONTINUE) -> 'ApplicationContext':
-        return super().create(
-            brand_name, locale, landing_page.name, shipping_preference.name,
-            user_action.name, payment_method, return_url, cancel_url
+        user_action: OrderUserAction = OrderUserAction.CONTINUE) -> 'OrderApplicationContext':
+        return cls(
+            brand_name=brand_name, locale=locale, landing_page= landing_page.name, 
+            shipping_preference= shipping_preference.name, user_action=user_action.name, 
+            payment_method= payment_method, return_url= return_url, cancel_url=cancel_url
         )
 
 class Order(PayPalEntity):
